@@ -185,19 +185,17 @@ export function ReaderClient({ bookId }: { bookId: string }) {
                     </div>
                 ) : (
                     <div className="prose prose-lg dark:prose-invert max-w-none" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}>
-                        {currentContent.map((line, index) => {
-                            const lineProps = {
-                              className: cn(line.className)
-                            };
+                        {currentContent.map((line) => {
+                             const { paragraphId, ...lineProps } = line;
                             switch (line.type) {
                                 case 'title':
-                                    return <h1 key={index} {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
+                                    return <h1 key={line.key} {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
                                 case 'subtitle':
-                                    return <h2 key={index} {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
+                                    return <h2 key={line.key} {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
                                 case 'blank':
-                                    return <div key={index} {...lineProps} className={cn("h-[1em]", line.className)}></div>;
+                                    return <div key={line.key} {...lineProps} className={cn("h-[1em]", line.className)}></div>;
                                 default:
-                                    return <p key={index} {...lineProps} className={cn("!my-0", line.className)}>{line.text}</p>;
+                                    return <p key={line.key} {...lineProps} className={cn("!my-0 mb-4", line.className)}>{line.text}</p>;
                             }
                         })}
                     </div>
@@ -223,3 +221,5 @@ export function ReaderClient({ bookId }: { bookId: string }) {
     </div>
   );
 }
+
+    

@@ -43,6 +43,19 @@ function findElement(container: any, name: string) {
     return element;
 }
 
+const LICENSE_KEYWORDS = [
+    'all rights reserved', 'public domain', 'creative commons', 'gutenberg',
+    'copyright', 'license', 'terms of use', 'no cost and with almost no restrictions'
+];
+
+function isLicensingInfo(text: string): boolean {
+    if (text.length > 2000) return false; // Avoid flagging long content sections
+    const lowerText = text.toLowerCase();
+    return LICENSE_KEYWORDS.some(keyword => lowerText.includes(keyword));
+}
+
+let lineKey = 0;
+
 // Parses HTML content to extract text lines
 function parseHtmlContent(html: string): Line[] {
     const cleanHtml = html.replace(/<br\s*\/?>/gi, '\n');
@@ -69,13 +82,13 @@ function parseHtmlContent(html: string): Line[] {
     if (blockElements.length === 0) {
         // Handle case where content is not wrapped in block elements
         const text = tempDiv.textContent?.trim();
-        if (text) {
+        if (text && !isLicensingInfo(text)) {
             const paragraphId = `p${pCounter++}`;
             text.split('\n').forEach(line => {
                 if (line.trim()) {
-                    lines.push({ type: 'content', text: line.trim(), paragraphId });
+                    lines.push({ type: 'content', text: line.trim(), paragraphId, key: `line-${lineKey++}` });
                 } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
-                    lines.push({ type: 'blank', text: '' });
+                    lines.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
                 }
             });
         }
@@ -84,7 +97,7 @@ function parseHtmlContent(html: string): Line[] {
 
     blockElements.forEach(el => {
         const text = el.textContent?.trim();
-        if (text) {
+        if (text && !isLicensingInfo(text)) {
             let type: Line['type'] = 'content';
             const tagName = el.tagName.toLowerCase();
             if (tagName.startsWith('h')) {
@@ -104,16 +117,15 @@ function parseHtmlContent(html: string): Line[] {
                 lineClassName = 'pl-4 italic border-l-2 border-muted-foreground my-4';
             }
 
-
             // Split text by newlines to create separate lines, preserving paragraphs
             text.split('\n').forEach(lineText => {
                 if (lineText.trim()) {
-                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName });
+                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName, key: `line-${lineKey++}` });
                 }
             });
-        } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
+        } else if (!text && lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
             // Add blank line for spacing between elements, but not multiple in a row
-            lines.push({ type: 'blank', text: '' });
+            lines.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
         }
     });
 
@@ -123,6 +135,7 @@ function parseHtmlContent(html: string): Line[] {
 
 export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">> {
   const zip = await JSZip.loadAsync(file);
+  lineKey = 0; // Reset line key for each book
 
   // 1. Find and parse container.xml to get the path to the .opf file
   const containerFile = zip.file("META-INF/container.xml");
@@ -165,8 +178,10 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
         const htmlContent = await contentFile.async("string");
         const lines = parseHtmlContent(htmlContent);
         if (bookContent.length > 0 && lines.length > 0) {
-            // Add a blank line between sections from different files
-            bookContent.push({ type: 'blank', text: '' });
+            // Add a blank line between sections from different files if the previous section didn't end with one.
+            if(bookContent[bookContent.length -1].type !== 'blank') {
+                bookContent.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
+            }
         }
         bookContent = bookContent.concat(lines);
     }
@@ -174,3 +189,5 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
 
   return { title, author, content: bookContent };
 }
+
+    

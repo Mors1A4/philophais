@@ -3,6 +3,7 @@ export interface Line {
   text: string;
   paragraphId?: string;
   className?: string;
+  key: string;
 }
 
 export interface Book {
@@ -12,3 +13,5 @@ export interface Book {
   cover: string; // URL to an image
   content: Line[];
 }
+
+    
