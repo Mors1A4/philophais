@@ -55,8 +55,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
-  const nextButtonRef = useRef<HTMLButtonElement>(null);
-  const prevButtonRef = useRef<HTMLButtonElement>(null);
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
@@ -165,10 +163,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   
   useEffect(() => {
     if (book && !pages.length) {
-      const timer = setTimeout(() => {
         paginate();
-      }, 0);
-      return () => clearTimeout(timer);
     }
   }, [book, pages, paginate]);
 
@@ -246,7 +241,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setCurrentPage(newPage);
     await handleProgressUpdate(newPage);
     setIsTurningPage(false);
-    nextButtonRef.current?.blur();
   };
 
   const goToPrevPage = async () => {
@@ -256,7 +250,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setCurrentPage(newPage);
     await handleProgressUpdate(newPage);
     setIsTurningPage(false);
-    prevButtonRef.current?.blur();
   };
 
   return (
@@ -317,13 +310,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         <div className="w-full max-w-3xl mx-auto p-2">
           <div className="flex flex-col sm:flex-row items-center gap-2">
             <div className="flex items-center justify-center gap-2">
-              <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
+              <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
                 <ChevronLeft />
               </Button>
               <span className="text-sm text-muted-foreground font-mono w-24 text-center">
                 {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
               </span>
-              <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
+              <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
                 <ChevronRight />
               </Button>
             </div>
