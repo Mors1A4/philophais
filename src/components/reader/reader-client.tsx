@@ -200,7 +200,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       return;
     }
   
-    const range = rangeAt(0);
+    const range = selection.getRangeAt(0);
     let container = range.commonAncestorContainer;
     
     if (container.nodeType === Node.TEXT_NODE) {
@@ -442,7 +442,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         )}
         onMouseUp={(e) => handleTextSelection(e)}
         onTouchEnd={(e) => handleTextSelection(e)}
-        onTouchCancel={(e) => handleTextSelection(e)}
+        onTouchCancel={(e) => {
+          e.preventDefault();
+          handleTextSelection(e);
+        }}
       >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -577,7 +580,3 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
-
-    
-
-    
