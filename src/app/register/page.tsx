@@ -15,6 +15,7 @@ import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
+import { LoadingSpinner } from "@/components/loading-spinner";
 
 export default function RegisterPage() {
   const { authStatus } = useAuthRedirect(false);
@@ -34,7 +35,7 @@ export default function RegisterPage() {
   };
 
   if (authStatus === 'loading') {
-    return <div className="flex h-screen w-full items-center justify-center">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (
