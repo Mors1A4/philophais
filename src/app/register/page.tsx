@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export default function RegisterPage() {
     }
   };
 
-  if (authStatus === 'loading') {
+  if (authStatus !== 'no-auth') {
     return <LoadingSpinner />;
   }
 
