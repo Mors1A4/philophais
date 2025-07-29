@@ -518,44 +518,42 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
               ))}
             </div>
           )}
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <div className="flex items-center justify-center gap-2">
+          <div className="flex w-full items-center gap-2">
               <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
-                <ChevronLeft />
+                  <ChevronLeft />
               </Button>
-              <span className="text-sm text-muted-foreground font-mono w-24 text-center">
-                {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
+              <span className="text-sm text-muted-foreground font-mono w-24 text-center shrink-0">
+                  {isPaginating ? '...' : `Page ${currentPage + 1} / ${pages.length}`}
               </span>
-              <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
-                <ChevronRight />
-              </Button>
-            </div>
-            <div className="w-full flex items-center gap-2">
               <Textarea
-                placeholder={activeSelection ? "Add a note to your highlight..." : "Ask a question about this page..."}
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if(activeSelection) handleSaveNote(); else handleAskQuestion();
-                  }
-                }}
-                className="text-base min-h-[40px] resize-none"
-                rows={1}
+                  placeholder={activeSelection ? "Add a note to your highlight..." : "Ask a question about this page..."}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if(activeSelection) handleSaveNote(); else handleAskQuestion();
+                      }
+                  }}
+                  className="text-base min-h-[40px] resize-none"
+                  rows={1}
               />
               {activeSelection ? (
-                 <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--${selectedColor}))`}} className="text-white">
-                    {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
-                    <span className="sr-only">Save Note</span>
+                  <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--primary))`}}>
+                      {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
+                      <span className="sr-only">Save Note</span>
                   </Button>
               ) : (
-                <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                  {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                  <span className="sr-only">Ask</span>
-                </Button>
+                <>
+                  <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                      {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                      <span className="sr-only">Ask</span>
+                  </Button>
+                  <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
+                      <ChevronRight />
+                  </Button>
+                </>
               )}
-            </div>
           </div>
         </div>
       </footer>
