@@ -270,18 +270,19 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
       <footer ref={footerRef} className="shrink-0 border-t relative z-10">
         <div className="w-full max-w-3xl mx-auto p-2">
-            <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center gap-2">
-                  <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
-                    <ChevronLeft />
-                  </Button>
-                  <span className="text-sm text-muted-foreground font-mono w-24 text-center">
-                    {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
-                  </span>
-                  <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
-                    <ChevronRight />
-                  </Button>
-                </div>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
+                  <ChevronLeft />
+                </Button>
+                <span className="text-sm text-muted-foreground font-mono w-24 text-center">
+                  {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
+                </span>
+                <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
+                  <ChevronRight />
+                </Button>
+              </div>
+              <div className="w-full flex items-center gap-2">
                 <Textarea
                   placeholder="Ask a question about this page..."
                   value={question}
@@ -299,6 +300,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                   {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                   <span className="sr-only">Ask</span>
                 </Button>
+              </div>
             </div>
         </div>
       </footer>
