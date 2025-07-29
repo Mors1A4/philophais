@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 
 export function LibraryClient() {
   const { authStatus } = useAuthRedirect(true);
-  const { books, addBook, clearBooks, isLoading, deleteBook } = useBooks();
+  const { books, addBook, isLoading, deleteBook } = useBooks();
   const { toast } = useToast();
   const router = useRouter();
   const auth = getAuth();
@@ -82,9 +82,6 @@ export function LibraryClient() {
           <h1 className="font-headline text-4xl font-bold">Your Library</h1>
           <div className="flex gap-2">
             <UploadButton onUpload={addBook} />
-            {books.length > 0 && (
-                <Button variant="destructive" onClick={clearBooks} className="font-headline">Clear Library</Button>
-            )}
           </div>
         </div>
 
