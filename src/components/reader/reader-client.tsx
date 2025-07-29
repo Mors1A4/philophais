@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -12,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height"; // Import the new hook
 
 interface ReaderClientProps {
   bookId: string;
@@ -34,6 +34,8 @@ const getParagraphClassName = (type: string, additionalClass?: string) => {
 
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
+  useVisualViewportHeight(); // ✨ 1. Set up the dynamic viewport height
+
   const { getBookById } = useBooks();
   const [book, setBook] = useState<Book | undefined>(undefined);
   const { toast } = useToast();
@@ -51,6 +53,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const responseCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchBook = async () => {
@@ -61,156 +64,153 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   }, [bookId, getBookById]);
 
   const paginate = useCallback(() => {
-    if (!book || !pageContainerRef.current || !headerRef.current || !footerRef.current) return;
+    if (!book || !pageContainerRef.current) return;
     
     setIsPaginating(true);
     
-    setTimeout(() => {
-      const pageContainer = pageContainerRef.current;
-      const header = headerRef.current;
-      const footer = footerRef.current;
-      if (!pageContainer || !header || !footer) return;
+    const pageContainer = pageContainerRef.current;
+    
+    // The height is now taken directly from the element, which is correctly sized by our --vh variable.
+    const containerHeight = pageContainer.clientHeight;
+    const containerWidth = pageContainer.clientWidth;
 
-      const pageContainerStyle = window.getComputedStyle(pageContainer);
-      const pageContainerPaddingY = parseFloat(pageContainerStyle.paddingTop) + parseFloat(pageContainerStyle.paddingBottom);
-      
-      const containerHeight = window.innerHeight - header.offsetHeight - footer.offsetHeight - pageContainerPaddingY;
-      const containerWidth = pageContainer.clientWidth;
+    const measurer = document.createElement('div');
+    measurer.style.position = 'absolute';
+    measurer.style.visibility = 'hidden';
+    measurer.style.width = `${containerWidth}px`;
+    measurer.className = pageContainer.className;
+    measurer.classList.remove('flex-1', 'overflow-hidden', 'relative');
+    document.body.appendChild(measurer);
 
-      const measurer = document.createElement('div');
-      measurer.style.position = 'absolute';
-      measurer.style.visibility = 'hidden';
-      measurer.style.width = `${containerWidth}px`;
-      measurer.className = pageContainer.className;
-      measurer.classList.remove('flex-1', 'overflow-hidden', 'relative');
-      document.body.appendChild(measurer);
-
-      const splitTextToFit = (text: string, maxHeight: number, p: Paragraph) => {
-        const paraElement = document.createElement('p');
-        paraElement.className = getParagraphClassName(p.type, p.className);
-        measurer.appendChild(paraElement);
-        const words = text.split(' ');
-        let low = 0, high = words.length, fitIndex = 0;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          paraElement.innerText = words.slice(0, mid).join(' ') || ' ';
-          if (paraElement.offsetHeight <= maxHeight) {
-            fitIndex = mid; low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
+    const splitTextToFit = (text: string, maxHeight: number, p: Paragraph) => {
+      const paraElement = document.createElement('p');
+      paraElement.className = getParagraphClassName(p.type, p.className);
+      measurer.appendChild(paraElement);
+      const words = text.split(' ');
+      let low = 0, high = words.length, fitIndex = 0;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        paraElement.innerText = words.slice(0, mid).join(' ') || ' ';
+        if (paraElement.offsetHeight <= maxHeight) {
+          fitIndex = mid; low = mid + 1;
+        } else {
+          high = mid - 1;
         }
-        measurer.removeChild(paraElement);
-        return {
-          fittingText: words.slice(0, fitIndex).join(' '),
-          leftoverText: words.slice(fitIndex).join(' ')
-        };
-      };
-      
-      const newPages: Paragraph[][] = [];
-      let currentPageParas: Paragraph[] = [];
-      let currentHeight = 0;
-      
-      const finalizePage = () => {
-        if (currentPageParas.length > 0) newPages.push(currentPageParas);
-        currentPageParas = [];
-        currentHeight = 0;
-      };
-
-      for (const p of book.content) {
-        const paraElement = document.createElement('p');
-        paraElement.className = getParagraphClassName(p.type, p.className);
-        paraElement.innerText = p.text || ' ';
-        measurer.appendChild(paraElement);
-        const style = window.getComputedStyle(paraElement);
-        const marginTop = parseFloat(style.marginTop);
-        const marginBottom = parseFloat(style.marginBottom);
-        let paraHeight = paraElement.offsetHeight + marginTop + marginBottom;
-        
-        if (p.type === 'content') {
-            paraHeight += 16;
-        }
-        measurer.removeChild(paraElement);
-
-        if (paraHeight > containerHeight && p.text) {
-          finalizePage();
-          let textToProcess = p.text;
-          while (textToProcess) {
-            const { fittingText, leftoverText } = splitTextToFit(textToProcess, containerHeight, p);
-            if (!fittingText && leftoverText) break;
-            currentPageParas.push({ ...p, text: fittingText, key: `${p.key}-part-${newPages.length}` });
-            finalizePage();
-            textToProcess = leftoverText;
-          }
-          continue;
-        }
-
-        if (currentHeight + paraHeight > containerHeight) {
-          finalizePage();
-        }
-
-        currentPageParas.push(p);
-        currentHeight += paraHeight;
       }
+      measurer.removeChild(paraElement);
+      return {
+        fittingText: words.slice(0, fitIndex).join(' '),
+        leftoverText: words.slice(fitIndex).join(' ')
+      };
+    };
+    
+    const newPages: Paragraph[][] = [];
+    let currentPageParas: Paragraph[] = [];
+    let currentHeight = 0;
+    
+    const finalizePage = () => {
+      if (currentPageParas.length > 0) newPages.push(currentPageParas);
+      currentPageParas = [];
+      currentHeight = 0;
+    };
 
-      finalizePage();
-      document.body.removeChild(measurer);
-      setPages(newPages);
-      setCurrentPage(0);
-      setIsPaginating(false);
-    }, 100);
+    for (const p of book.content) {
+      const paraElement = document.createElement('p');
+      paraElement.className = getParagraphClassName(p.type, p.className);
+      paraElement.innerText = p.text || ' ';
+      measurer.appendChild(paraElement);
+      const style = window.getComputedStyle(paraElement);
+      const marginTop = parseFloat(style.marginTop);
+      const marginBottom = parseFloat(style.marginBottom);
+      let paraHeight = paraElement.offsetHeight + marginTop + marginBottom;
+      if (p.type === 'content') paraHeight += 16;
+      measurer.removeChild(paraElement);
+
+      if (paraHeight > containerHeight && p.text) {
+        finalizePage();
+        let textToProcess = p.text;
+        while (textToProcess) {
+          const { fittingText, leftoverText } = splitTextToFit(textToProcess, containerHeight, p);
+          if (!fittingText && leftoverText) break;
+          currentPageParas.push({ ...p, text: fittingText, key: `${p.key}-part-${newPages.length}` });
+          finalizePage();
+          textToProcess = leftoverText;
+        }
+        continue;
+      }
+      if (currentHeight + paraHeight > containerHeight) {
+        finalizePage();
+      }
+      currentPageParas.push(p);
+      currentHeight += paraHeight;
+    }
+
+    finalizePage();
+    document.body.removeChild(measurer);
+    setPages(newPages);
+    // Ensure currentPage isn't out of bounds after repagination
+    setCurrentPage(prev => Math.min(prev, newPages.length - 1));
+    setIsPaginating(false);
   }, [book]);
 
   const handleAskQuestion = async () => {
-    const currentQuestion = question.trim();
-    if (!currentQuestion || !pages[currentPage]) return;
-    
+    if (!question.trim() || !pages[currentPage]) {
+      return;
+    }
+
     setIsAsking(true);
-    setLastResponse("Thinking...");
+    setLastResponse(null);
     setIsResponseVisible(true);
-    setQuestion("");
+
+    const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
+    const input: AnswerQuestionInput = {
+      question,
+      pageContent,
+      chatHistory: chatHistory,
+    };
 
     try {
-      const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
-      const input: AnswerQuestionInput = { 
-        question: currentQuestion, 
-        pageContent, 
-        chatHistory 
-      };
-      const result = await answerQuestion(input);
-      
-      const newHistoryWithAnswer = `${chatHistory}\n\n**You:** ${currentQuestion}\n\n**Assistant:** ${result.answer}`;
-      setChatHistory(newHistoryWithAnswer.trim());
-      setLastResponse(result.answer);
-
+      const response = await answerQuestion(input);
+      const newHistory = `User: ${question}\nAssistant: ${response.answer}\n`;
+      setChatHistory(prev => prev + newHistory);
+      setLastResponse(response.answer);
     } catch (error) {
       console.error("Error asking question:", error);
       toast({
         variant: "destructive",
-        title: "AI Error",
-        description: "Could not get an answer from the assistant. Please try again.",
+        title: "Error",
+        description: "Could not get an answer from the assistant.",
       });
-      setLastResponse("Sorry, an error occurred. Please try again.");
+      setLastResponse("Sorry, I couldn't get an answer. Please try again.");
     } finally {
       setIsAsking(false);
+      setQuestion("");
     }
   };
 
+  // ✨ 2. Use a ResizeObserver for the most reliable pagination trigger.
   useEffect(() => {
-    if (book) {
-      paginate();
-    }
-    window.addEventListener('resize', paginate);
-    return () => window.removeEventListener('resize', paginate);
-  }, [book, paginate]);
+    const mainContentArea = pageContainerRef.current;
+    if (!book || !mainContentArea) return;
 
-  // Reset chat history and response when page changes
+    let debounceTimer: NodeJS.Timeout;
+    const observer = new ResizeObserver(() => {
+      // Debounce the paginate call to avoid excessive re-renders during resize.
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => paginate(), 150);
+    });
+
+    observer.observe(mainContentArea);
+
+    return () => observer.disconnect();
+  }, [book, paginate]);
+  
+  // This effect is now just for clearing chat state on page turn.
   useEffect(() => {
     setChatHistory("");
     setLastResponse(null);
     setIsResponseVisible(false);
   }, [currentPage]);
-
 
   if (!book) {
     return (
@@ -224,8 +224,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, pages.length - 1));
   const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 0));
 
+  // ✨ 3. Apply the dynamic height to the root container.
   return (
-    <div className="flex h-screen w-full flex-col">
+    <div className="flex w-full flex-col" style={{ height: 'var(--vh, 100vh)' }}>
       <header ref={headerRef} className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
         <div className="flex flex-col overflow-hidden">
           <h1 className="font-headline text-xl font-bold truncate">{book.title}</h1>
@@ -236,7 +237,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       
-      <main ref={pageContainerRef} className="flex-1 overflow-hidden prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative">
+      {/* The main content area now has a reliable parent height, so flex-1 works correctly. */}
+      <main ref={pageContainerRef} className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative">
+        {/* We add overflow-y-auto here as a fallback in case of minor miscalculation, preventing the whole page from scrolling */}
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -257,61 +260,61 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         )}
       </main>
       
-      {isResponseVisible && lastResponse && (
-        <div className="w-full max-w-3xl mx-auto p-4 pt-0">
-            <Card className="relative shadow-lg">
+      {isResponseVisible && (
+        <div ref={responseCardRef} className="w-full max-w-3xl mx-auto p-4 pt-0 shrink-0">
+          <Card className="relative shadow-lg">
             <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => setIsResponseVisible(false)}>
-                <X className="h-4 w-4" />
+              <X className="h-4 w-4" />
             </Button>
             <CardHeader>
-                <CardTitle className="text-lg font-headline flex items-center gap-2">
+              <CardTitle className="text-lg font-headline flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-accent" />
                 Assistant
-                </CardTitle>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                    {lastResponse}
-                </div>
+              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                  {lastResponse ?? <Loader2 className="animate-spin" />}
+              </div>
             </CardContent>
-            </Card>
+          </Card>
         </div>
       )}
 
       <footer ref={footerRef} className="shrink-0 border-t relative z-10">
         <div className="w-full max-w-3xl mx-auto p-2">
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="flex items-center justify-center gap-2">
-                <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
-                  <ChevronLeft />
-                </Button>
-                <span className="text-sm text-muted-foreground font-mono w-24 text-center">
-                  {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
-                </span>
-                <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
-                  <ChevronRight />
-                </Button>
-              </div>
-              <div className="w-full flex items-center gap-2">
-                <Textarea
-                  placeholder="Ask a question about this page..."
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAskQuestion();
-                    }
-                  }}
-                  className="text-base"
-                  rows={1}
-                />
-                <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                  {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                  <span className="sr-only">Ask</span>
-                </Button>
-              </div>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
+                <ChevronLeft />
+              </Button>
+              <span className="text-sm text-muted-foreground font-mono w-24 text-center">
+                {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
+              </span>
+              <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
+                <ChevronRight />
+              </Button>
             </div>
+            <div className="w-full flex items-center gap-2">
+              <Textarea
+                placeholder="Ask a question about this page..."
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAskQuestion();
+                  }
+                }}
+                className="text-base"
+                rows={1}
+              />
+              <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                <span className="sr-only">Ask</span>
+              </Button>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
