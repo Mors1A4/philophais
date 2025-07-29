@@ -226,53 +226,51 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
           </div>
         )}
       </main>
-
-      <footer ref={footerRef} className="shrink-0 flex flex-col items-center justify-center gap-2 border-t p-2">
-        <div className="flex items-center justify-center gap-4">
-          <Button variant="ghost" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
-            <ChevronLeft />
-          </Button>
-          <span className="text-sm text-muted-foreground font-mono">
-            Page {isPaginating ? '-' : currentPage + 1} of {isPaginating ? '-' : pages.length}
-          </span>
-          <Button variant="ghost" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
-            <ChevronRight />
-          </Button>
-        </div>
-        <div className="w-full max-w-3xl px-4">
-            <Card className="border-0 shadow-none">
-              <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue} className="w-full">
-                <AccordionItem value="qa-result" className="border-none">
-                  <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <Textarea
-                          placeholder="Ask a question about the text on this page..."
-                          value={question}
-                          onChange={(e) => setQuestion(e.target.value)}
-                          className="text-base"
-                          rows={1}
-                        />
-                        <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+      
+      <footer ref={footerRef} className="shrink-0 border-t">
+        <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue} className="w-full">
+          <AccordionItem value="qa-result" className="border-b-0">
+             <div className="w-full max-w-3xl mx-auto p-2">
+                <AccordionContent>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg font-headline">Assistant's Answer</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {isAsking && <p className="text-muted-foreground">Thinking...</p>}
+                        {qaResult && <p className="prose prose-sm dark:prose-invert max-w-none">{qaResult.answer}</p>}
+                      </CardContent>
+                    </Card>
+                </AccordionContent>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
+                        <ChevronLeft />
+                      </Button>
+                      <span className="text-sm text-muted-foreground font-mono w-24 text-center">
+                        {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
+                      </span>
+                      <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
+                        <ChevronRight />
+                      </Button>
+                    </div>
+                    <Textarea
+                      placeholder="Ask a question about this page..."
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      className="text-base"
+                      rows={1}
+                    />
+                    <AccordionTrigger asChild>
+                         <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
                           {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                           <span className="sr-only">Ask</span>
                         </Button>
-                      </div>
-                      <AccordionContent>
-                        <Card className="mt-2">
-                          <CardHeader>
-                            <CardTitle className="text-lg font-headline">Assistant's Answer</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {isAsking && <p className="text-muted-foreground">Thinking...</p>}
-                            {qaResult && <p className="prose prose-sm dark:prose-invert max-w-none">{qaResult.answer}</p>}
-                          </CardContent>
-                        </Card>
-                      </AccordionContent>
-                  </div>
-                </AccordionItem>
-              </Accordion>
-            </Card>
-        </div>
+                    </AccordionTrigger>
+                </div>
+             </div>
+          </AccordionItem>
+        </Accordion>
       </footer>
     </div>
   );
