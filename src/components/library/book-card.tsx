@@ -1,3 +1,4 @@
+
 import type { Book } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
@@ -29,6 +30,11 @@ export function BookCard({ book, onDelete }: BookCardProps) {
     e.preventDefault();
     e.stopPropagation();
     onDelete(book.id);
+  };
+  
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   return (
@@ -63,7 +69,7 @@ export function BookCard({ book, onDelete }: BookCardProps) {
             variant="destructive"
             size="icon"
             className={`absolute top-2 right-2 z-10 h-8 w-8 transition-opacity duration-200 ${isMenuVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-            onClick={(e) => e.preventDefault()} // Prevent link navigation
+            onClick={handleTriggerClick}
           >
             <Trash2 className="h-4 w-4" />
           </Button>

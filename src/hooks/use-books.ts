@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -43,15 +44,18 @@ export function useBooks() {
       }
     };
 
-    fetchBooks();
+    if (userId) {
+      fetchBooks();
+    }
   }, [userId]);
 
   const addBook = useCallback(async (newBook: Omit<Book, "id">) => {
     if (!userId) return;
     try {
       const booksCollection = collection(db, "users", userId, "books");
-      const docRef = await addDoc(booksCollection, newBook);
-      const bookWithId: Book = { ...newBook, id: docRef.id };
+      const bookData = { ...newBook, notes: newBook.notes || [] }; // Ensure notes is an array
+      const docRef = await addDoc(booksCollection, bookData);
+      const bookWithId: Book = { ...bookData, id: docRef.id };
       setBooks((prevBooks) => [...prevBooks, bookWithId]);
     } catch (error) {
       console.error("Failed to save book to Firestore", error);
@@ -61,20 +65,17 @@ export function useBooks() {
   const getBookById = useCallback(async (id: string): Promise<Book | undefined> => {
     if (!userId) return undefined;
     
-    // First, try to find the book in the local state
     const localBook = books.find(book => book.id === id);
-    if (localBook && localBook.content.length > 0) { // check for content to ensure it's the full book
+    if (localBook && localBook.content.length > 0) {
       return localBook;
     }
 
-    // If not found locally or is partial, fetch from Firestore
     setIsLoading(true);
     try {
       const bookDocRef = doc(db, "users", userId, "books", id);
       const bookDoc = await getDoc(bookDocRef);
       if (bookDoc.exists()) {
         const bookData = { ...bookDoc.data(), id: bookDoc.id } as Book;
-        // Update the local state with the full book data
         setBooks(prev => {
             const index = prev.findIndex(b => b.id === id);
             if (index > -1) {
@@ -102,11 +103,9 @@ export function useBooks() {
         await updateDoc(bookDocRef, {
             lastReadParagraphKey: paragraphKey
         });
-        // Also update local state to prevent unnecessary re-fetches and keep UI consistent
         setBooks(prev => prev.map(b => b.id === bookId ? { ...b, lastReadParagraphKey: paragraphKey } : b));
     } catch (error) {
         console.error("Failed to update book progress in Firestore", error);
-        // We throw the error so the caller can handle it if needed
         throw error;
     }
   }, [userId]);
@@ -125,17 +124,46 @@ export function useBooks() {
     }
   }, [userId]);
 
-  const deleteNote = useCallback(async (bookId: string, note: Note) => {
+  const deleteNote = useCallback(async (bookId: string, noteToDelete: Note) => {
     if (!userId) throw new Error("User not authenticated");
+    
     try {
       const bookDocRef = doc(db, "users", userId, "books", bookId);
-      await updateDoc(bookDocRef, {
-        notes: arrayRemove(note)
-      });
-       setBooks(prev => prev.map(b => b.id === bookId ? { ...b, notes: b.notes?.filter(n => n.id !== note.id) } : b));
+      const bookDoc = await getDoc(bookDocRef);
+
+      if (bookDoc.exists()) {
+        const bookData = bookDoc.data() as Book;
+        const notes = bookData.notes || [];
+        
+        // Find the exact note object in the array from Firestore
+        const noteToRemove = notes.find(n => n.id === noteToDelete.id);
+
+        if (noteToRemove) {
+          await updateDoc(bookDocRef, {
+            notes: arrayRemove(noteToRemove)
+          });
+
+          // Optimistically update local state
+          setBooks(prevBooks =>
+            prevBooks.map(book => {
+              if (book.id === bookId) {
+                return {
+                  ...book,
+                  notes: book.notes?.filter(n => n.id !== noteToDelete.id),
+                };
+              }
+              return book;
+            })
+          );
+        } else {
+           console.warn("Note not found in Firestore, may have been deleted already.");
+           // Also clean up local state just in case
+           setBooks(prev => prev.map(b => b.id === bookId ? { ...b, notes: b.notes?.filter(n => n.id !== noteToDelete.id) } : b));
+        }
+      }
     } catch (error) {
-        console.error("Failed to delete note in Firestore", error);
-        throw error;
+      console.error("Failed to delete note from Firestore", error);
+      throw error;
     }
   }, [userId]);
 
