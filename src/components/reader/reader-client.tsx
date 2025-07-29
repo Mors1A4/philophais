@@ -261,7 +261,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                       className="text-base"
                       rows={1}
                     />
-                    <AccordionTrigger asChild>
+                    <AccordionTrigger>
                          <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
                           {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                           <span className="sr-only">Ask</span>
