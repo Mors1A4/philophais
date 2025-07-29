@@ -62,20 +62,21 @@ export function ReaderClient({ bookId }: { bookId: string }) {
 
           // Check for paragraph integrity
           if (currentLine.paragraphId) {
-            const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
-            const paragraphWeight = paragraphLines.reduce((acc, l) => acc + (LINE_WEIGHTS[l.type] || 1), 0);
             const isParagraphStart = i === 0 || allLines[i-1].paragraphId !== currentLine.paragraphId;
             
-            if (isParagraphStart && currentWeight + paragraphWeight > linesPerScreen && currentWeight > 0) {
-              // Not enough space for the new paragraph, so start a new page
-              newPages.push(currentPageLines);
-              currentPageLines = [];
-              currentWeight = 0;
-            }
+            if (isParagraphStart) {
+              const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
+              const paragraphWeight = paragraphLines.reduce((acc, l) => acc + (LINE_WEIGHTS[l.type] || 1), 0);
+              
+              if (currentWeight + paragraphWeight > linesPerScreen && currentWeight > 0) {
+                // Not enough space for the new paragraph, so start a new page
+                newPages.push(currentPageLines);
+                currentPageLines = [];
+                currentWeight = 0;
+              }
 
-            // If the whole paragraph is too big for a single page, we have to split it.
-            // But for now, we assume paragraphs fit on one page.
-            if(isParagraphStart) {
+              // If the whole paragraph is too big for a single page, we have to split it.
+              // But for now, we assume paragraphs fit on one page.
               for (const pLine of paragraphLines) {
                 const pLineWeight = LINE_WEIGHTS[pLine.type] || 1;
                 if (currentWeight + pLineWeight > linesPerScreen && currentPageLines.length > 0) {
@@ -186,18 +187,17 @@ export function ReaderClient({ bookId }: { bookId: string }) {
                     <div className="prose prose-lg dark:prose-invert max-w-none" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}>
                         {currentContent.map((line, index) => {
                             const lineProps = {
-                              key: index,
                               className: cn(line.className)
                             };
                             switch (line.type) {
                                 case 'title':
-                                    return <h1 {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
+                                    return <h1 key={index} {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
                                 case 'subtitle':
-                                    return <h2 {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
+                                    return <h2 key={index} {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
                                 case 'blank':
-                                    return <div {...lineProps} className={cn("h-[1em]", line.className)}></div>;
+                                    return <div key={index} {...lineProps} className={cn("h-[1em]", line.className)}></div>;
                                 default:
-                                    return <p {...lineProps} className={cn("!my-0", line.className)}>{line.text}</p>;
+                                    return <p key={index} {...lineProps} className={cn("!my-0", line.className)}>{line.text}</p>;
                             }
                         })}
                     </div>
