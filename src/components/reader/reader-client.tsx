@@ -247,27 +247,28 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         )}
       </main>
       
+      {isResponseVisible && lastResponse && (
+        <div className="w-full max-w-3xl mx-auto p-4 pt-0">
+            <Card className="relative shadow-lg">
+            <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => setIsResponseVisible(false)}>
+                <X className="h-4 w-4" />
+            </Button>
+            <CardHeader>
+                <CardTitle className="text-lg font-headline flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-accent" />
+                Assistant
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                    {lastResponse}
+                </div>
+            </CardContent>
+            </Card>
+        </div>
+      )}
+
       <footer ref={footerRef} className="shrink-0 border-t relative z-10">
-        {isResponseVisible && lastResponse && (
-          <div className="w-full max-w-3xl mx-auto p-4 pt-0">
-             <Card className="relative shadow-lg">
-                <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => setIsResponseVisible(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-                <CardHeader>
-                  <CardTitle className="text-lg font-headline flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-accent" />
-                    Assistant
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                      {lastResponse}
-                    </div>
-                </CardContent>
-              </Card>
-          </div>
-        )}
         <div className="w-full max-w-3xl mx-auto p-2">
             <div className="flex items-center gap-2">
                 <div className="flex items-center justify-center gap-2">
