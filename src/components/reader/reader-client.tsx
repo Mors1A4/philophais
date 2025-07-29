@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useBooks } from "@/hooks/use-books";
 import { useAuthRedirect } from "@/hooks/use-auth";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Save, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2, Save, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { Paragraph, AnswerQuestionInput, Book, Note } from "@/lib/types";
@@ -143,10 +143,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   }, [bookId, getBookById]);
   
   useEffect(() => {
-    if (book) {
+    if (book && !pages.length) {
         paginate();
     }
-  }, [book, paginate]);
+  }, [book, pages.length, paginate]);
 
   const handleProgressUpdate = async (newPageIndex: number) => {
     if (!book || !pages[newPageIndex]) return;
@@ -173,7 +173,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       return;
     }
   
-    // On touch devices, prevent the default context menu from appearing.
     if (event.type === 'touchend' || event.type === 'touchcancel') {
       event.preventDefault();
     }
@@ -266,12 +265,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     const marks = allMarks.reduce((acc, current) => {
       const previous = acc[acc.length - 1];
       if (previous && previous.startIndex === current.startIndex && previous.endIndex === current.endIndex) {
-        // If the current one is a selection, it replaces the previous one (which must be a note due to sort order)
         if (current.type === 'selection') {
           acc[acc.length - 1] = current;
         }
-        // Otherwise, if the current one is a note and we already have a selection, do nothing (keep the selection).
-        // If both are notes, this shouldn't happen with unique IDs, but we'd just keep the first one.
       } else {
         acc.push(current);
       }
@@ -375,13 +371,18 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       await handleProgressUpdate(newPage);
     }
     
-    if (direction === 'next') nextButtonRef.current?.blur();
-    else prevButtonRef.current?.blur();
     setIsTurningPage(false);
   };
   
-  const goToNextPage = () => changePage('next');
-  const goToPrevPage = () => changePage('prev');
+  const goToNextPage = async () => {
+    await changePage('next');
+    nextButtonRef.current?.blur();
+  };
+
+  const goToPrevPage = async () => {
+    await changePage('prev');
+    prevButtonRef.current?.blur();
+  };
 
   if (!book) {
     return (
@@ -452,6 +453,18 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
               <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
                   {lastResponse ?? <Loader2 className="animate-spin" />}
               </div>
+               {activeSelection && lastResponse && !isAsking && (
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setQuestion(lastResponse)}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy to Note
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
