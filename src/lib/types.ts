@@ -1,5 +1,5 @@
 export interface Line {
-  type: 'title' | 'subtitle' | 'content' | 'blank';
+  type: 'title' | 'subtitle' | 'content' | 'blank' | 'image';
   text: string;
 }
 
