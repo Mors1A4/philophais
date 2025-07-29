@@ -7,12 +7,22 @@ export interface Paragraph {
   key: string;
 }
 
+export interface Note {
+  id: string;
+  paragraphKey: string;
+  startIndex: number;
+  endIndex: number;
+  text: string;
+  selectedText: string;
+}
+
 export interface Book {
   id: string;
   title: string;
   author: string;
   cover: string; // URL to an image
   content: Paragraph[];
+  notes?: Note[];
   lastReadParagraphKey?: string;
 }
 

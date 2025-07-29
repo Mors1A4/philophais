@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Book } from "@/lib/types";
-import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc } from "firebase/firestore";
+import type { Book, Note } from "@/lib/types";
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
@@ -111,6 +111,34 @@ export function useBooks() {
     }
   }, [userId]);
 
+  const addNote = useCallback(async (bookId: string, note: Note) => {
+    if (!userId) throw new Error("User not authenticated");
+    try {
+      const bookDocRef = doc(db, "users", userId, "books", bookId);
+      await updateDoc(bookDocRef, {
+        notes: arrayUnion(note)
+      });
+      setBooks(prev => prev.map(b => b.id === bookId ? { ...b, notes: [...(b.notes || []), note] } : b));
+    } catch (error) {
+      console.error("Failed to add note in Firestore", error);
+      throw error;
+    }
+  }, [userId]);
+
+  const deleteNote = useCallback(async (bookId: string, note: Note) => {
+    if (!userId) throw new Error("User not authenticated");
+    try {
+      const bookDocRef = doc(db, "users", userId, "books", bookId);
+      await updateDoc(bookDocRef, {
+        notes: arrayRemove(note)
+      });
+       setBooks(prev => prev.map(b => b.id === bookId ? { ...b, notes: b.notes?.filter(n => n.id !== note.id) } : b));
+    } catch (error) {
+        console.error("Failed to delete note in Firestore", error);
+        throw error;
+    }
+  }, [userId]);
+
   const clearBooks = useCallback(async () => {
     if (!userId) return;
     try {
@@ -136,7 +164,5 @@ export function useBooks() {
   }, [userId]);
 
 
-  return { books, addBook, getBookById, clearBooks, isLoading, deleteBook, updateBookProgress };
+  return { books, addBook, getBookById, clearBooks, isLoading, deleteBook, updateBookProgress, addNote, deleteNote };
 }
-
-    

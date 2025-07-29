@@ -1,20 +1,28 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useBooks } from "@/hooks/use-books";
 import { useAuthRedirect } from "@/hooks/use-auth";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Save, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import type { Paragraph, AnswerQuestionInput, Book } from "@/lib/types";
+import type { Paragraph, AnswerQuestionInput, Book, Note } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height";
 
 interface ReaderClientProps {
   bookId: string;
+}
+
+interface SelectionInfo {
+  paragraphKey: string;
+  startIndex: number;
+  endIndex: number;
+  text: string;
 }
 
 const getParagraphClassName = (type: string, additionalClass?: string) => {
@@ -36,7 +44,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   useVisualViewportHeight();
 
-  const { getBookById, updateBookProgress } = useBooks();
+  const { getBookById, updateBookProgress, addNote, deleteNote } = useBooks();
   const [book, setBook] = useState<Book | undefined>(undefined);
   const { toast } = useToast();
 
@@ -50,22 +58,24 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const [lastResponse, setLastResponse] = useState<string | null>(null);
   const [isResponseVisible, setIsResponseVisible] = useState(false);
   const [isAsking, setIsAsking] = useState(false);
+
+  const [activeSelection, setActiveSelection] = useState<SelectionInfo | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
+  const pageTurnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+  const prevButtonRef = useRef<HTMLButtonElement>(null);
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
-    
     setIsPaginating(true);
-    
     const pageContainer = pageContainerRef.current;
-    
     const containerHeight = pageContainer.clientHeight;
     const containerWidth = pageContainer.clientWidth;
-
     const measurer = document.createElement('div');
     measurer.style.position = 'absolute';
     measurer.style.visibility = 'hidden';
@@ -74,82 +84,52 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     measurer.classList.remove('flex-1', 'overflow-hidden', 'relative');
     document.body.appendChild(measurer);
 
-    const splitTextToFit = (text: string, maxHeight: number, p: Paragraph) => {
-      const paraElement = document.createElement('p');
-      paraElement.className = getParagraphClassName(p.type, p.className);
-      measurer.appendChild(paraElement);
-      const words = text.split(' ');
-      let low = 0, high = words.length, fitIndex = 0;
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        paraElement.innerText = words.slice(0, mid).join(' ') || ' ';
-        if (paraElement.offsetHeight <= maxHeight) {
-          fitIndex = mid; low = mid + 1;
-        } else {
-          high = mid - 1;
-        }
-      }
-      measurer.removeChild(paraElement);
-      return {
-        fittingText: words.slice(0, fitIndex).join(' '),
-        leftoverText: words.slice(fitIndex).join(' ')
-      };
-    };
-    
     const newPages: Paragraph[][] = [];
     let currentPageParas: Paragraph[] = [];
     let currentHeight = 0;
     
-    const finalizePage = () => {
-      if (currentPageParas.length > 0) newPages.push(currentPageParas);
-      currentPageParas = [];
-      currentHeight = 0;
-    };
-
     for (const p of book.content) {
       const paraElement = document.createElement('p');
       paraElement.className = getParagraphClassName(p.type, p.className);
-      paraElement.innerText = p.text || ' ';
+      
+      const pNotes = book.notes?.filter(n => n.paragraphKey === p.key).sort((a,b) => a.startIndex - b.startIndex) || [];
+      let currentTextIndex = 0;
+      let newHtml = '';
+      pNotes.forEach(note => {
+        newHtml += p.text.substring(currentTextIndex, note.startIndex);
+        newHtml += `<span class="bg-accent/30" data-note-id="${note.id}">${p.text.substring(note.startIndex, note.endIndex)}</span>`;
+        currentTextIndex = note.endIndex;
+      });
+      newHtml += p.text.substring(currentTextIndex);
+      paraElement.innerHTML = newHtml || ' ';
+
       measurer.appendChild(paraElement);
       const style = window.getComputedStyle(paraElement);
       const marginTop = parseFloat(style.marginTop);
       const marginBottom = parseFloat(style.marginBottom);
-      let paraHeight = paraElement.offsetHeight + marginTop + marginBottom;
-      if (p.type === 'content') paraHeight += 16;
+      const paraHeight = paraElement.offsetHeight + marginTop + marginBottom + (p.type === 'content' ? 16 : 0);
       measurer.removeChild(paraElement);
 
-      if (paraHeight > containerHeight && p.text) {
-        finalizePage();
-        let textToProcess = p.text;
-        while (textToProcess) {
-          const { fittingText, leftoverText } = splitTextToFit(textToProcess, containerHeight, p);
-          if (!fittingText && leftoverText) break;
-          currentPageParas.push({ ...p, text: fittingText, key: `${p.key}-part-${newPages.length}` });
-          finalizePage();
-          textToProcess = leftoverText;
-        }
-        continue;
-      }
-      if (currentHeight + paraHeight > containerHeight) {
-        finalizePage();
+      if (currentHeight + paraHeight > containerHeight && currentPageParas.length > 0) {
+        newPages.push(currentPageParas);
+        currentPageParas = [];
+        currentHeight = 0;
       }
       currentPageParas.push(p);
       currentHeight += paraHeight;
     }
 
-    finalizePage();
+    if (currentPageParas.length > 0) newPages.push(currentPageParas);
+    
     document.body.removeChild(measurer);
     setPages(newPages);
 
     let startingPage = 0;
     if (book.lastReadParagraphKey) {
         const pageIndex = newPages.findIndex(page => page.find(p => p.key === book.lastReadParagraphKey));
-        if (pageIndex !== -1) {
-            startingPage = pageIndex;
-        }
+        if (pageIndex !== -1) startingPage = pageIndex;
     }
     setCurrentPage(startingPage);
-    
     setIsPaginating(false);
   }, [book]);
 
@@ -162,10 +142,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   }, [bookId, getBookById]);
   
   useEffect(() => {
-    if (book && !pages.length) {
+    if (book) {
         paginate();
     }
-  }, [book, pages, paginate]);
+  }, [book, paginate]);
 
   const handleProgressUpdate = async (newPageIndex: number) => {
     if (!book || !pages[newPageIndex]) return;
@@ -175,13 +155,126 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         await updateBookProgress(book.id, paragraphKey);
       } catch (err) {
         console.error("Failed to update progress:", err);
-        toast({
-            variant: "destructive",
-            title: "Sync Error",
-            description: "Could not save reading progress."
-        });
+        toast({ variant: "destructive", title: "Sync Error", description: "Could not save reading progress."});
       }
     }
+  };
+
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      if(activeSelection) setActiveSelection(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    let container = range.commonAncestorContainer;
+    
+    if (container.nodeType === Node.TEXT_NODE) {
+      container = container.parentElement!;
+    }
+    
+    const paragraphEl = (container as HTMLElement).closest('p[data-paragraph-key]');
+    if (!paragraphEl) {
+      setActiveSelection(null);
+      return;
+    };
+    
+    const paragraphKey = paragraphEl.getAttribute('data-paragraph-key')!;
+    const paragraphText = book?.content.find(p => p.key === paragraphKey)?.text || '';
+    
+    const clone = range.cloneRange();
+    clone.selectNodeContents(paragraphEl);
+    clone.setEnd(range.startContainer, range.startOffset);
+    const startIndex = clone.toString().length;
+    const endIndex = startIndex + range.toString().length;
+    
+    const text = range.toString();
+    if (text.trim()) {
+      setActiveSelection({ paragraphKey, startIndex, endIndex, text });
+      setQuestion("");
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!activeSelection || !question.trim() || !book) return;
+    setIsSavingNote(true);
+    const note: Note = {
+      id: `note-${Date.now()}`,
+      paragraphKey: activeSelection.paragraphKey,
+      startIndex: activeSelection.startIndex,
+      endIndex: activeSelection.endIndex,
+      text: question,
+      selectedText: activeSelection.text,
+    };
+    try {
+      await addNote(book.id, note);
+      const updatedBook = { ...book, notes: [...(book.notes || []), note] };
+      setBook(updatedBook);
+      toast({ title: "Note saved!" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not save note."});
+    } finally {
+      setIsSavingNote(false);
+      setActiveSelection(null);
+      setQuestion("");
+    }
+  };
+
+  const handleDeleteNote = async (note: Note) => {
+    if (!book) return;
+    try {
+      await deleteNote(book.id, note);
+       const updatedBook = { ...book, notes: book.notes?.filter(n => n.id !== note.id) };
+       setBook(updatedBook);
+       toast({ title: "Note deleted." });
+    } catch (error) {
+       toast({ variant: "destructive", title: "Error", description: "Could not delete note."});
+    }
+  };
+
+  const pageNotes = useMemo(() => {
+    if (!book?.notes || !pages[currentPage]) return [];
+    const pageParaKeys = new Set(pages[currentPage].map(p => p.key));
+    return book.notes.filter(n => pageParaKeys.has(n.paragraphKey));
+  }, [book, pages, currentPage]);
+
+  const renderParagraphWithHighlights = (p: Paragraph) => {
+    const notesInPara = pageNotes.filter(n => n.paragraphKey === p.key).sort((a,b) => a.startIndex - b.startIndex);
+    if (notesInPara.length === 0) return p.text;
+    
+    let lastIndex = 0;
+    const segments: React.ReactNode[] = [];
+    notesInPara.forEach((note, i) => {
+      if (note.startIndex > lastIndex) {
+        segments.push(p.text.substring(lastIndex, note.startIndex));
+      }
+      segments.push(
+        <Popover key={note.id}>
+          <PopoverTrigger asChild>
+            <span className="bg-accent/30 cursor-pointer" data-note-id={note.id}>
+              {p.text.substring(note.startIndex, note.endIndex)}
+            </span>
+          </PopoverTrigger>
+          <PopoverContent className="w-80">
+            <div className="space-y-4">
+              <p className="text-sm border-l-2 border-accent pl-2 italic">"{note.selectedText}"</p>
+              <p className="text-sm">{note.text}</p>
+              <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Note
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+      lastIndex = note.endIndex;
+    });
+
+    if (lastIndex < p.text.length) {
+      segments.push(p.text.substring(lastIndex));
+    }
+    
+    return <>{segments}</>;
   };
 
   const handleAskQuestion = async () => {
@@ -194,11 +287,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setIsResponseVisible(true);
 
     const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
-    const input: AnswerQuestionInput = {
-      question,
-      pageContent,
-      chatHistory: chatHistory,
-    };
+    const input: AnswerQuestionInput = { question, pageContent, chatHistory };
 
     try {
       const response = await answerQuestion(input);
@@ -207,11 +296,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       setLastResponse(response.answer);
     } catch (error) {
       console.error("Error asking question:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not get an answer from the assistant.",
-      });
+      toast({ variant: "destructive", title: "Error", description: "Could not get an answer from the assistant."});
       setLastResponse("Sorry, I couldn't get an answer. Please try again.");
     } finally {
       setIsAsking(false);
@@ -223,7 +308,32 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setChatHistory("");
     setLastResponse(null);
     setIsResponseVisible(false);
+    setActiveSelection(null);
   }, [currentPage]);
+
+  const changePage = (direction: 'next' | 'prev') => {
+    if (isTurningPage) return;
+    setIsTurningPage(true);
+
+    const newPage = direction === 'next' 
+      ? Math.min(currentPage + 1, pages.length - 1)
+      : Math.max(currentPage - 1, 0);
+
+    if (newPage !== currentPage) {
+      setCurrentPage(newPage);
+      handleProgressUpdate(newPage);
+    }
+
+    if (pageTurnTimeoutRef.current) clearTimeout(pageTurnTimeoutRef.current);
+    pageTurnTimeoutRef.current = setTimeout(() => {
+      setIsTurningPage(false);
+      if (direction === 'next') nextButtonRef.current?.blur();
+      else prevButtonRef.current?.blur();
+    }, 200);
+  };
+  
+  const goToNextPage = () => changePage('next');
+  const goToPrevPage = () => changePage('prev');
 
   if (!book) {
     return (
@@ -233,24 +343,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       </div>
     );
   }
-
-  const goToNextPage = async () => {
-    if (isTurningPage || currentPage >= pages.length - 1) return;
-    setIsTurningPage(true);
-    const newPage = Math.min(currentPage + 1, pages.length - 1);
-    setCurrentPage(newPage);
-    await handleProgressUpdate(newPage);
-    setIsTurningPage(false);
-  };
-
-  const goToPrevPage = async () => {
-    if (isTurningPage || currentPage === 0) return;
-    setIsTurningPage(true);
-    const newPage = Math.max(currentPage - 1, 0);
-    setCurrentPage(newPage);
-    await handleProgressUpdate(newPage);
-    setIsTurningPage(false);
-  };
 
   return (
     <div className="flex w-full flex-col" style={{ height: 'var(--vh, 100vh)' }}>
@@ -264,7 +356,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       
-      <main ref={pageContainerRef} className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative">
+      <main ref={pageContainerRef} className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative" onMouseUp={handleTextSelection}>
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -276,7 +368,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
               if (p.type === 'blank') return <div key={p.key} className="h-4"></div>;
               return (
                 <React.Fragment key={p.key}>
-                  <p className={getParagraphClassName(p.type, p.className)}>{p.text}</p>
+                  <p className={getParagraphClassName(p.type, p.className)} data-paragraph-key={p.key}>
+                    {renderParagraphWithHighlights(p)}
+                  </p>
                   {p.type === 'content' && <div className="h-4" />}
                 </React.Fragment>
               );
@@ -310,34 +404,41 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         <div className="w-full max-w-3xl mx-auto p-2">
           <div className="flex flex-col sm:flex-row items-center gap-2">
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
+              <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
                 <ChevronLeft />
               </Button>
               <span className="text-sm text-muted-foreground font-mono w-24 text-center">
                 {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
               </span>
-              <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
+              <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
                 <ChevronRight />
               </Button>
             </div>
             <div className="w-full flex items-center gap-2">
               <Textarea
-                placeholder="Ask a question about this page..."
+                placeholder={activeSelection ? "Add a note to your highlight..." : "Ask a question about this page..."}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleAskQuestion();
+                    if(activeSelection) handleSaveNote(); else handleAskQuestion();
                   }
                 }}
                 className="text-base min-h-[40px] resize-none"
                 rows={1}
               />
-              <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                <span className="sr-only">Ask</span>
-              </Button>
+              {activeSelection ? (
+                 <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                    {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
+                    <span className="sr-only">Save Note</span>
+                  </Button>
+              ) : (
+                <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                  {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  <span className="sr-only">Ask</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
