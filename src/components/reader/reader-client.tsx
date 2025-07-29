@@ -117,6 +117,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         const marginTop = parseFloat(style.marginTop);
         const marginBottom = parseFloat(style.marginBottom);
         let paraHeight = paraElement.offsetHeight + marginTop + marginBottom;
+        
         if (p.type === 'content') {
             paraHeight += 16;
         }
@@ -286,7 +287,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                       className="text-base"
                       rows={1}
                     />
-                    <AccordionTrigger asChild>
+                    <AccordionTrigger>
                          <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
                           {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                           <span className="sr-only">Ask</span>
