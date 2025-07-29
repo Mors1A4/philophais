@@ -48,6 +48,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
           return (
             <p key={p.key} className={`${p.className || ''} my-0`}>
               {p.text}
+              <span className="select-none text-muted-foreground/50">{' <ENDPARA>'}</span>
             </p>
           );
         })}
