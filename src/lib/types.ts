@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const NOTE_COLORS = ['yellow', 'red', 'green', 'blue', 'purple'] as const;
+export type NoteColor = typeof NOTE_COLORS[number];
+
 export interface Paragraph {
   type: 'title' | 'subtitle' | 'content' | 'blank';
   text: string;
@@ -14,10 +17,11 @@ export interface Note {
   endIndex: number;
   text: string;
   selectedText: string;
+  color: NoteColor;
 }
 
 export interface Book {
-  id: string;
+  id:string;
   title: string;
   author: string;
   cover: string; // URL to an image

@@ -7,7 +7,7 @@ import { useAuthRedirect } from "@/hooks/use-auth";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2, Save, Sparkles, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import type { Paragraph, AnswerQuestionInput, Book, Note } from "@/lib/types";
+import type { Paragraph, AnswerQuestionInput, Book, Note, NoteColor } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height";
 import { cn } from "@/lib/utils";
+import { NOTE_COLORS } from "@/lib/types";
 
 interface ReaderClientProps {
   bookId: string;
@@ -42,6 +43,31 @@ const getParagraphClassName = (type: string, additionalClass?: string) => {
   return `${baseClasses} ${additionalClass || ''}`.trim();
 };
 
+const noteColorClasses: Record<NoteColor, string> = {
+  yellow: "text-yellow-500",
+  red: "text-red-500",
+  green: "text-green-500",
+  blue: "text-blue-500",
+  purple: "text-purple-500",
+};
+
+const noteColorRingClasses: Record<NoteColor, string> = {
+    yellow: "ring-yellow-500",
+    red: "ring-red-500",
+    green: "ring-green-500",
+    blue: "ring-blue-500",
+    purple: "ring-purple-500",
+};
+
+const noteColorBgClasses: Record<NoteColor, string> = {
+    yellow: "bg-yellow-500",
+    red: "bg-red-500",
+    green: "bg-green-500",
+    blue: "bg-blue-500",
+    purple: "bg-purple-500",
+};
+
+
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   useVisualViewportHeight();
@@ -63,6 +89,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
   const [activeSelection, setActiveSelection] = useState<SelectionInfo | null>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<NoteColor>('yellow');
   
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -98,7 +125,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       let newHtml = '';
       pNotes.forEach(note => {
         newHtml += p.text.substring(currentTextIndex, note.startIndex);
-        newHtml += `<span class="bg-accent/30" data-note-id="${note.id}">${p.text.substring(note.startIndex, note.endIndex)}</span>`;
+        newHtml += `<span class="${noteColorClasses[note.color]}" data-note-id="${note.id}">${p.text.substring(note.startIndex, note.endIndex)}</span>`;
         currentTextIndex = note.endIndex;
       });
       newHtml += p.text.substring(currentTextIndex);
@@ -174,7 +201,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     }
   
     if (event.type === 'touchend' || event.type === 'touchcancel') {
-      event.preventDefault();
+        event.preventDefault();
     }
 
     const range = selection.getRangeAt(0);
@@ -218,6 +245,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       endIndex: activeSelection.endIndex,
       text: question,
       selectedText: activeSelection.text,
+      color: selectedColor,
     };
     try {
       await addNote(book.id, note);
@@ -288,18 +316,19 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       const highlightedText = p.text.substring(mark.startIndex, mark.endIndex);
 
       if (mark.type === 'note') {
+        const note = mark as Note;
         segments.push(
-          <Popover key={(mark as Note).id}>
+          <Popover key={note.id}>
             <PopoverTrigger asChild>
-              <span className="bg-accent/30 cursor-pointer" data-note-id={(mark as Note).id}>
+              <span className={cn("cursor-pointer font-semibold", noteColorClasses[note.color])} data-note-id={note.id}>
                 {highlightedText}
               </span>
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-4">
-                <p className="text-sm border-l-2 border-accent pl-2 italic">"{(mark as Note).selectedText}"</p>
-                <p className="text-sm">{(mark as Note).text}</p>
-                <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(mark as Note)} className="w-full">
+                <p className="text-sm border-l-2 border-accent pl-2 italic">"{note.selectedText}"</p>
+                <p className="text-sm">{note.text}</p>
+                <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
                   <Trash2 className="mr-2 h-4 w-4" /> Delete Note
                 </Button>
               </div>
@@ -371,7 +400,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       await handleProgressUpdate(newPage);
     }
     
-    setIsTurningPage(false);
+    setTimeout(() => setIsTurningPage(false), 100); 
   };
   
   const goToNextPage = async () => {
@@ -472,6 +501,23 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
       <footer ref={footerRef} className="shrink-0 border-t relative z-10">
         <div className="w-full max-w-3xl mx-auto p-2">
+           {activeSelection && (
+            <div className="flex items-center justify-center gap-3 py-2">
+              {NOTE_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setSelectedColor(color)}
+                  className={cn(
+                    "h-6 w-6 rounded-full transition-all",
+                    noteColorBgClasses[color],
+                    selectedColor === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110',
+                    noteColorRingClasses[color]
+                  )}
+                  aria-label={`Select ${color} color`}
+                />
+              ))}
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row items-center gap-2">
             <div className="flex items-center justify-center gap-2">
               <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
@@ -499,7 +545,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                 rows={1}
               />
               {activeSelection ? (
-                 <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                 <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--${selectedColor}))`}} className="text-white">
                     {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
                     <span className="sr-only">Save Note</span>
                   </Button>
