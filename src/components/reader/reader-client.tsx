@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height";
+import { cn } from "@/lib/utils";
 
 interface ReaderClientProps {
   bookId: string;
@@ -388,7 +390,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       
       <main 
         ref={pageContainerRef} 
-        className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative" 
+        className={cn(
+          "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative",
+          "select-none" // Disable native text selection
+        )}
         onMouseUp={handleTextSelection}
         onTouchEnd={handleTextSelection}
       >
@@ -481,3 +486,5 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
+
+    
