@@ -1,16 +1,16 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useBooks } from "@/hooks/use-books";
 import { useAuthRedirect } from "@/hooks/use-auth";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { Paragraph, AnswerQuestionInput, AnswerQuestionOutput } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 
 interface ReaderClientProps {
@@ -44,8 +44,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   
   const [question, setQuestion] = useState("");
   const [chatHistory, setChatHistory] = useState("");
+  const [lastResponse, setLastResponse] = useState<string | null>(null);
+  const [isResponseVisible, setIsResponseVisible] = useState(false);
   const [isAsking, setIsAsking] = useState(false);
-  const [accordionValue, setAccordionValue] = useState<string | undefined>();
   
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -157,11 +158,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     if (!currentQuestion || !pages[currentPage]) return;
     
     setIsAsking(true);
-    setAccordionValue("qa-result");
+    setLastResponse("Thinking...");
+    setIsResponseVisible(true);
     setQuestion("");
-
-    const newHistoryWithQuestion = `${chatHistory}\n\n**You:** ${currentQuestion}\n\n**Assistant:** Thinking...`;
-    setChatHistory(newHistoryWithQuestion);
 
     try {
       const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
@@ -174,6 +173,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       
       const newHistoryWithAnswer = `${chatHistory}\n\n**You:** ${currentQuestion}\n\n**Assistant:** ${result.answer}`;
       setChatHistory(newHistoryWithAnswer.trim());
+      setLastResponse(result.answer);
 
     } catch (error) {
       console.error("Error asking question:", error);
@@ -182,7 +182,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         title: "AI Error",
         description: "Could not get an answer from the assistant. Please try again.",
       });
-      setChatHistory(chatHistory); // Revert history on error
+      setLastResponse("Sorry, an error occurred. Please try again.");
     } finally {
       setIsAsking(false);
     }
@@ -194,10 +194,11 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     return () => window.removeEventListener('resize', paginate);
   }, [paginate]);
 
-  // Reset chat history when page changes
+  // Reset chat history and response when page changes
   useEffect(() => {
     setChatHistory("");
-    setAccordionValue(undefined);
+    setLastResponse(null);
+    setIsResponseVisible(false);
   }, [currentPage]);
 
 
@@ -215,7 +216,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
   return (
     <div className="flex h-screen w-full flex-col">
-      <header ref={headerRef} className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
+      <header ref={headerRef} className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
         <div className="flex flex-col overflow-hidden">
           <h1 className="font-headline text-xl font-bold truncate">{book.title}</h1>
           <p className="text-sm text-muted-foreground truncate">{book.author}</p>
@@ -246,58 +247,62 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         )}
       </main>
       
-      <footer ref={footerRef} className="shrink-0 border-t">
-        <Accordion type="single" collapsible value={accordionValue} onValueChange={setAccordionValue} className="w-full">
-          <AccordionItem value="qa-result" className="border-b-0">
-             <div className="w-full max-w-3xl mx-auto p-2">
-                <AccordionContent>
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg font-headline">Assistant Chat</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                         <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                          {chatHistory || "Ask a question to start the conversation."}
-                        </div>
-                      </CardContent>
-                    </Card>
-                </AccordionContent>
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center gap-2">
-                      <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
-                        <ChevronLeft />
-                      </Button>
-                      <span className="text-sm text-muted-foreground font-mono w-24 text-center">
-                        {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
-                      </span>
-                      <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
-                        <ChevronRight />
-                      </Button>
+      <footer ref={footerRef} className="shrink-0 border-t relative z-10">
+        {isResponseVisible && lastResponse && (
+          <div className="w-full max-w-3xl mx-auto p-4 pt-0">
+             <Card className="relative shadow-lg">
+                <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => setIsResponseVisible(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardHeader>
+                  <CardTitle className="text-lg font-headline flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-accent" />
+                    Assistant
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                      {lastResponse}
                     </div>
-                    <Textarea
-                      placeholder="Ask a question about this page..."
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleAskQuestion();
-                        }
-                      }}
-                      className="text-base"
-                      rows={1}
-                    />
-                    <AccordionTrigger>
-                         <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                          {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                          <span className="sr-only">Ask</span>
-                        </Button>
-                    </AccordionTrigger>
+                </CardContent>
+              </Card>
+          </div>
+        )}
+        <div className="w-full max-w-3xl mx-auto p-2">
+            <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
+                  <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
+                    <ChevronLeft />
+                  </Button>
+                  <span className="text-sm text-muted-foreground font-mono w-24 text-center">
+                    {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
+                  </span>
+                  <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
+                    <ChevronRight />
+                  </Button>
                 </div>
-             </div>
-          </AccordionItem>
-        </Accordion>
+                <Textarea
+                  placeholder="Ask a question about this page..."
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAskQuestion();
+                    }
+                  }}
+                  className="text-base"
+                  rows={1}
+                />
+                <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                  {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  <span className="sr-only">Ask</span>
+                </Button>
+            </div>
+        </div>
       </footer>
     </div>
   );
 }
+
+    
