@@ -73,14 +73,15 @@ export function ReaderClient({ bookId }: { bookId: string }) {
         setPages(newPages);
         
         // Clamp current page to new total pages
-        if (currentPage > newPages.length) {
-            setCurrentPage(newPages.length || 1);
-        }
+        setCurrentPage(prev => {
+            const newTotalPages = newPages.length || 1;
+            return Math.max(1, Math.min(prev, newTotalPages));
+        });
 
         setIsPaginating(false);
     }, 100);
 
-  }, [book, currentPage]);
+  }, [book]);
 
 
   useEffect(() => {
