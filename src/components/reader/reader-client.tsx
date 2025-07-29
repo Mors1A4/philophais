@@ -66,7 +66,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       <main className="prose prose-lg dark:prose-invert mx-auto max-w-3xl p-4 md:p-8">
-        {contentToDisplay.map((p, index) => {
+        {contentToDisplay.map((p) => {
           if (p.type === 'blank') {
             return <div key={p.key} className="h-4"></div>;
           }
@@ -75,7 +75,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
               <p className={getParagraphClassName(p.type, p.className)}>
                 {p.text}
               </p>
-              <div className="h-4"></div>
+              {p.type === 'content' && <div className="h-4"></div>}
             </React.Fragment>
           );
         })}
