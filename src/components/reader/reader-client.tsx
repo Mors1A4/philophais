@@ -304,5 +304,3 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
-
-    
