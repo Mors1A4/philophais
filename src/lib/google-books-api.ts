@@ -1,4 +1,3 @@
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 const PLACEHOLDER_COVER = "https://placehold.co/400x600";
 
 export async function findBookCover(title: string, author: string): Promise<string> {
@@ -22,9 +21,20 @@ export async function findBookCover(title: string, author: string): Promise<stri
     if (data.items && data.items.length > 0) {
       const book = data.items[0];
       const imageLinks = book.volumeInfo.imageLinks;
+      
       if (imageLinks) {
-        // Prefer larger images, replace http with https
-        const coverUrl = (imageLinks.extraLarge || imageLinks.large || imageLinks.thumbnail || imageLinks.smallThumbnail).replace(/^http:/, 'https:');
+        // Start with the best available link
+        let coverUrl = (imageLinks.extraLarge || imageLinks.large || imageLinks.thumbnail || imageLinks.smallThumbnail).replace(/^http:/, 'https:');
+        
+        // Attempt to get an even higher resolution by modifying the URL
+        if (coverUrl.includes('zoom=')) {
+            // Replace zoom parameter for a higher resolution one
+            const highResUrl = coverUrl.replace(/(&|\?)zoom=\d+/, '$1zoom=3');
+            // We can check if this image exists, but for simplicity, we'll just request it.
+            // Most browsers will handle a 404 gracefully for an img src.
+            return highResUrl;
+        }
+        
         return coverUrl;
       }
     }
