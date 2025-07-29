@@ -163,6 +163,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   
   useEffect(() => {
     if (book) {
+      // Defer pagination until after the first render to ensure layout is stable
       const timer = setTimeout(() => {
         paginate();
       }, 0);
@@ -317,7 +318,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                     handleAskQuestion();
                   }
                 }}
-                className="text-base"
+                className="text-base min-h-[40px] resize-none"
                 rows={1}
               />
               <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
