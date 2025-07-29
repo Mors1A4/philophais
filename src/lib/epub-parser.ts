@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { xml2js } from "xml-js";
-import type { Line } from "./types";
+import type { Book, Line } from "./types";
 
 interface ManifestItem {
   _attributes: {
@@ -63,13 +63,19 @@ function parseHtmlContent(html: string): Line[] {
     });
 
     const lines: Line[] = [];
-    const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div"));
+    const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div, blockquote"));
 
     if (blockElements.length === 0) {
         // Handle case where content is not wrapped in block elements
         const text = tempDiv.textContent?.trim();
         if (text) {
-             lines.push({ type: 'content', text });
+            text.split('\n').forEach(line => {
+                if (line.trim()) {
+                    lines.push({ type: 'content', text: line.trim() });
+                } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
+                    lines.push({ type: 'blank', text: '' });
+                }
+            });
         }
         return lines;
     }
@@ -78,17 +84,20 @@ function parseHtmlContent(html: string): Line[] {
         const text = el.textContent?.trim();
         if (text) {
             let type: Line['type'] = 'content';
-            if (el.tagName.startsWith('H')) {
-                const level = parseInt(el.tagName.substring(1), 10);
-                if (level <= 2) {
-                    type = 'title';
-                } else {
-                    type = 'subtitle';
-                }
+            const tagName = el.tagName.toLowerCase();
+            if (tagName.startsWith('h')) {
+                const level = parseInt(tagName.substring(1), 10);
+                type = level <= 2 ? 'title' : 'subtitle';
             }
-             lines.push({ type, text });
+            
+            // Split text by newlines to create separate lines, preserving paragraphs
+            text.split('\n').forEach(lineText => {
+                if (lineText.trim()) {
+                    lines.push({ type, text: lineText.trim() });
+                }
+            });
         } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
-            // Add blank line for spacing, but not multiple in a row
+            // Add blank line for spacing between elements, but not multiple in a row
             lines.push({ type: 'blank', text: '' });
         }
     });
@@ -140,6 +149,10 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
     if (contentFile) {
         const htmlContent = await contentFile.async("string");
         const lines = parseHtmlContent(htmlContent);
+        if (bookContent.length > 0 && lines.length > 0) {
+            // Add a blank line between sections from different files
+            bookContent.push({ type: 'blank', text: '' });
+        }
         bookContent = bookContent.concat(lines);
     }
   }
