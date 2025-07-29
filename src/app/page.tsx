@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function LoginPage() {
   useAuthRedirect(false);
@@ -59,8 +60,8 @@ export default function LoginPage() {
             </form>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
-             <Button onClick={handleAuthAction} variant="link" className="text-sm text-muted-foreground">
-              Don't have an account? Register
+             <Button asChild variant="link" className="text-sm text-muted-foreground">
+              <Link href="/register">Don't have an account? Register</Link>
             </Button>
           </CardFooter>
         </Card>

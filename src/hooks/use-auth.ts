@@ -14,12 +14,18 @@ export function useAuth() {
     router.push("/library");
   }, [router]);
 
+  const register = useCallback(() => {
+    // In a real app, you would register the user and then log them in.
+    localStorage.setItem(AUTH_KEY, "dummy_token");
+    router.push("/library");
+  }, [router]);
+
   const logout = useCallback(() => {
     localStorage.removeItem(AUTH_KEY);
     router.push("/");
   }, [router]);
 
-  return { login, logout };
+  return { login, logout, register };
 }
 
 export function useAuthRedirect(shouldBeAuthenticated: boolean) {
