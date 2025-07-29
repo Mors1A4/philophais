@@ -1,9 +1,9 @@
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_BOOKS_API_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 const PLACEHOLDER_COVER = "https://placehold.co/400x600";
 
 export async function findBookCover(title: string, author: string): Promise<string> {
   if (!API_KEY) {
-    console.warn("Google Books API key not found. Using placeholder cover.");
+    console.warn("Google Books API key (NEXT_PUBLIC_GEMINI_API_KEY) not found. Using placeholder cover.");
     return PLACEHOLDER_COVER;
   }
 

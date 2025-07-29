@@ -9,11 +9,21 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 export function LibraryClient() {
   const authStatus = useAuthRedirect(true);
-  const { books, addBook, clearBooks, isLoading } = useBooks();
+  const { books, addBook, clearBooks, isLoading, deleteBook } = useBooks();
   const { logout } = useAuth();
+  const { toast } = useToast();
+
+  const handleDeleteBook = (bookId: string) => {
+    deleteBook(bookId);
+    toast({
+      title: "Book Deleted",
+      description: "The book has been removed from your library.",
+    });
+  };
 
   if (authStatus === "loading" || isLoading) {
     return (
@@ -65,7 +75,7 @@ export function LibraryClient() {
         {books.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {books.map((book) => (
-              <BookCard key={book.id} book={book} />
+              <BookCard key={book.id} book={book} onDelete={handleDeleteBook} />
             ))}
           </div>
         ) : (

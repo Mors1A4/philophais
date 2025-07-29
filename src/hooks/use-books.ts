@@ -48,6 +48,18 @@ export function useBooks() {
     }
   }, []);
 
+  const deleteBook = useCallback((id: string) => {
+    try {
+      setBooks((prevBooks) => {
+        const updatedBooks = prevBooks.filter((book) => book.id !== id);
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+        return updatedBooks;
+      });
+    } catch (error) {
+      console.error("Failed to delete book from localStorage", error);
+    }
+  }, []);
 
-  return { books, addBook, getBookById, clearBooks, isLoading };
+
+  return { books, addBook, getBookById, clearBooks, isLoading, deleteBook };
 }
