@@ -200,11 +200,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       return;
     }
   
-    if (event.type === 'touchend' || event.type === 'touchcancel') {
-        event.preventDefault();
-    }
-
-    const range = selection.getRangeAt(0);
+    const range = rangeAt(0);
     let container = range.commonAncestorContainer;
     
     if (container.nodeType === Node.TEXT_NODE) {
@@ -447,7 +443,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         onMouseUp={(e) => handleTextSelection(e)}
         onTouchEnd={(e) => handleTextSelection(e)}
         onTouchCancel={(e) => handleTextSelection(e)}
-        onContextMenu={(e) => e.preventDefault()}
       >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
