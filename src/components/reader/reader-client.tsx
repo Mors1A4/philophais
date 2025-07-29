@@ -391,8 +391,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       <main 
         ref={pageContainerRef} 
         className={cn(
-          "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative",
-          "select-none" // Disable native text selection
+          "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative"
         )}
         onMouseUp={handleTextSelection}
         onTouchEnd={handleTextSelection}
@@ -486,5 +485,3 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
-
-    
