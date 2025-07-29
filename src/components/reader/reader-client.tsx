@@ -32,7 +32,7 @@ export function ReaderClient({ bookId }: { bookId: string }) {
 
   const calculatePages = useCallback(() => {
     if (!book || !contentRef.current) return;
-    
+
     setIsPaginating(true);
 
     setTimeout(() => {
@@ -49,38 +49,58 @@ export function ReaderClient({ bookId }: { bookId: string }) {
             setIsPaginating(false);
             return;
         };
-
+        
         const newPages: Line[][] = [];
         let currentPageLines: Line[] = [];
-        let currentLineWeight = 0;
-        
+        let currentWeight = 0;
         const allLines = book.content;
 
-        for (let i = 0; i < allLines.length; i++) {
-            const currentLine = allLines[i];
-            const lineWeight = LINE_WEIGHTS[currentLine.type] || 1;
-            
-            // If it's the start of a paragraph, check if the whole paragraph can fit
-            if (currentLine.paragraphId && (i === 0 || allLines[i-1].paragraphId !== currentLine.paragraphId)) {
-                const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
-                const paragraphWeight = paragraphLines.reduce((total, l) => total + (LINE_WEIGHTS[l.type] || 1), 0);
+        let i = 0;
+        while (i < allLines.length) {
+          const currentLine = allLines[i];
+          const lineWeight = LINE_WEIGHTS[currentLine.type] || 1;
 
-                if (currentLineWeight + paragraphWeight > linesPerScreen && currentPageLines.length > 0) {
-                    newPages.push(currentPageLines);
-                    currentPageLines = [];
-                    currentLineWeight = 0;
+          // Check for paragraph integrity
+          if (currentLine.paragraphId) {
+            const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
+            const paragraphWeight = paragraphLines.reduce((acc, l) => acc + (LINE_WEIGHTS[l.type] || 1), 0);
+            const isParagraphStart = i === 0 || allLines[i-1].paragraphId !== currentLine.paragraphId;
+            
+            if (isParagraphStart && currentWeight + paragraphWeight > linesPerScreen && currentWeight > 0) {
+              // Not enough space for the new paragraph, so start a new page
+              newPages.push(currentPageLines);
+              currentPageLines = [];
+              currentWeight = 0;
+            }
+
+            // If the whole paragraph is too big for a single page, we have to split it.
+            // But for now, we assume paragraphs fit on one page.
+            if(isParagraphStart) {
+              for (const pLine of paragraphLines) {
+                const pLineWeight = LINE_WEIGHTS[pLine.type] || 1;
+                if (currentWeight + pLineWeight > linesPerScreen) {
+                  newPages.push(currentPageLines);
+                  currentPageLines = [];
+                  currentWeight = 0;
                 }
+                currentPageLines.push(pLine);
+                currentWeight += pLineWeight;
+              }
+              i += paragraphLines.length;
+              continue;
             }
-            
-            // If the current line doesn't fit, create a new page
-            if (currentLineWeight + lineWeight > linesPerScreen && currentPageLines.length > 0) {
-                newPages.push(currentPageLines);
-                currentPageLines = [];
-                currentLineWeight = 0;
-            }
+          }
+          
+          // Fallback for lines without paragraphId or if logic is midway
+          if (currentWeight + lineWeight > linesPerScreen) {
+              newPages.push(currentPageLines);
+              currentPageLines = [];
+              currentWeight = 0;
+          }
 
-            currentPageLines.push(currentLine);
-            currentLineWeight += lineWeight;
+          currentPageLines.push(currentLine);
+          currentWeight += lineWeight;
+          i++;
         }
 
         if (currentPageLines.length > 0) {
