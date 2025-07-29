@@ -1,7 +1,6 @@
 import type { Book } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import {
@@ -37,7 +36,7 @@ export function BookCard({ book, onDelete }: BookCardProps) {
       onMouseEnter={() => setIsMenuVisible(true)}
       onMouseLeave={() => setIsMenuVisible(false)}
     >
-      <Link href={`/read/${book.id}`} className="block">
+      <div className="block">
         <Card className="overflow-hidden transition-all duration-300 ease-in-out group-hover:shadow-lg group-hover:-translate-y-1">
           <CardContent className="p-0">
             <div className="aspect-[2/3] w-full overflow-hidden">
@@ -56,7 +55,7 @@ export function BookCard({ book, onDelete }: BookCardProps) {
             </div>
           </CardContent>
         </Card>
-      </Link>
+      </div>
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button

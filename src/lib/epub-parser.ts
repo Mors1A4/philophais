@@ -1,65 +1,47 @@
+// src/lib/epub-parser.ts
+
 import JSZip from "jszip";
 import { xml2js } from "xml-js";
-import type { Book, Paragraph } from "./types";
+import type { Book, Paragraph } from "./types"; // Assuming types are in `src/lib/types.ts`
 
+// Helper interfaces for parsing the EPUB's structure files
 interface ManifestItem {
-  _attributes: {
-    id: string;
-    href: string;
-    "media-type": string;
-  };
+  _attributes: { id: string; href: string; "media-type": string; };
 }
-
 interface SpineItem {
-  _attributes: {
-    idref: string;
-  };
+  _attributes: { idref: string; };
 }
-
-// Basic types for OPF and NCX structures
 interface OpfData {
   package: {
-    metadata: {
-      "dc:title": { _text: string };
-      "dc:creator": { _text: string };
-      [key: string]: any;
-    };
-    manifest: {
-      item: ManifestItem[];
-    };
-    spine: {
-      itemref: SpineItem[];
-    };
+    metadata: { "dc:title": { _text: string }; "dc:creator": { _text: string }; [key: string]: any; };
+    manifest: { item: ManifestItem[]; };
+    spine: { itemref: SpineItem[]; };
   };
 }
 
-// Helper to find an element in a structure that might be an array or an object
-function findElement(container: any, name: string) {
-    if (!container) return undefined;
-    const element = container[name];
-    if (Array.isArray(element)) {
-        return element[0];
-    }
-    return element;
-}
-
+// Keywords to identify and filter out licensing/legal text
 const LICENSE_KEYWORDS = [
     'all rights reserved', 'public domain', 'creative commons', 'gutenberg',
     'copyright', 'license', 'terms of use', 'no cost and with almost no restrictions'
 ];
 
+/**
+ * Checks if a piece of text is likely licensing or legal information.
+ */
 function isLicensingInfo(text: string): boolean {
-    if (text.length > 2000) return false; // Avoid flagging long content sections
     const lowerText = text.toLowerCase();
+    // Return true if any of the keywords are found in the text
     return LICENSE_KEYWORDS.some(keyword => lowerText.includes(keyword));
 }
 
-// Parses HTML content to extract text lines
+/**
+ * Parses an HTML string from the EPUB and extracts content into structured paragraphs.
+ */
 function parseHtmlContent(html: string, keyCounter: { value: number }): Paragraph[] {
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = html;
 
-    // Attempt to remove footnote links cleanly
+    // Clean up footnote links, which can clutter the reading experience
     tempDiv.querySelectorAll('a[href^="#"]').forEach(a => {
         const sup = a.parentElement;
         if (sup?.tagName === 'SUP') {
@@ -68,45 +50,49 @@ function parseHtmlContent(html: string, keyCounter: { value: number }): Paragrap
     });
 
     const paragraphs: Paragraph[] = [];
+    // Query for all common block-level elements that structure content
     const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div, blockquote"));
 
+    // Fallback for content that isn't wrapped in block elements
     if (blockElements.length === 0) {
-        // Handle case where content is not wrapped in block elements
         const text = tempDiv.textContent?.trim();
         if (text && !isLicensingInfo(text)) {
-            text.split('\n\n').forEach(para => {
-                if (para.trim()) {
-                    paragraphs.push({ type: 'content', text: para.trim(), key: `para-${keyCounter.value++}` });
+            // Split by double newlines to simulate paragraphs
+            text.split('\n\n').forEach(paraText => {
+                if (paraText.trim()) {
+                    paragraphs.push({ type: 'content', text: paraText.trim(), key: `para-${keyCounter.value++}` });
                 }
             });
         }
         return paragraphs;
     }
 
+    // Process each block element
     blockElements.forEach(el => {
         const text = el.textContent?.trim();
+
         if (text && !isLicensingInfo(text)) {
             let type: Paragraph['type'] = 'content';
             const tagName = el.tagName.toLowerCase();
+
+            // Determine paragraph type (title, subtitle, etc.) based on heading level
             if (tagName.startsWith('h')) {
                 const level = parseInt(tagName.substring(1), 10);
                 type = level <= 2 ? 'title' : 'subtitle';
             }
             
-            const className = el.getAttribute('class') || '';
-            const style = el.getAttribute('style') || '';
-            
-            let paragraphClassName = '';
-            if (className.includes('center') || style.includes('text-align: center')) {
-                paragraphClassName = 'text-center';
+            // Assign specific styling classes based on tag or element attributes
+            let className = '';
+            if (el.getAttribute('class')?.includes('center') || el.getAttribute('style')?.includes('text-align: center')) {
+                className = 'text-center';
             }
             if(tagName === 'blockquote'){
-                paragraphClassName = 'pl-4 italic border-l-2 border-muted-foreground my-4';
+                className = 'pl-4 italic border-l-2 border-muted-foreground my-4';
             }
 
-            paragraphs.push({ type, text, className: paragraphClassName, key: `para-${keyCounter.value++}` });
+            paragraphs.push({ type, text, className, key: `para-${keyCounter.value++}` });
         } else if (!text && paragraphs.length > 0 && paragraphs[paragraphs.length - 1].type !== 'blank') {
-            // Add blank line for spacing between elements, but not multiple in a row
+            // Add a blank paragraph for spacing, but avoid multiple blanks in a row
             paragraphs.push({ type: 'blank', text: '', key: `para-${keyCounter.value++}` });
         }
     });
@@ -114,12 +100,15 @@ function parseHtmlContent(html: string, keyCounter: { value: number }): Paragrap
     return paragraphs;
 }
 
-
+/**
+ * Main function to parse an EPUB file.
+ * It unzips the file, reads the metadata, and processes the content files in order.
+ */
 export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">> {
   const zip = await JSZip.loadAsync(file);
-  const keyCounter = { value: 0 }; // Use an object to pass by reference
+  const keyCounter = { value: 0 }; // Use an object to pass by reference for a unique key
 
-  // 1. Find and parse container.xml to get the path to the .opf file
+  // 1. Find and parse container.xml to get the path to the main .opf file
   const containerFile = zip.file("META-INF/container.xml");
   if (!containerFile) throw new Error("META-INF/container.xml not found.");
   const containerXml = await containerFile.async("string");
@@ -127,30 +116,26 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
   const opfPath = containerJs.container.rootfiles.rootfile._attributes["full-path"];
   const opfDir = opfPath.substring(0, opfPath.lastIndexOf('/'));
 
-  // 2. Parse the .opf file for metadata and manifest
+  // 2. Parse the .opf file for metadata (title, author) and the book's structure
   const opfFile = zip.file(opfPath);
-  if (!opfFile) throw new Error(".opf file not found at: " + opfPath);
+  if (!opfFile) throw new Error(`.opf file not found at: ${opfPath}`);
   const opfXml = await opfFile.async("string");
   const opfData: OpfData = xml2js(opfXml, { compact: true }) as OpfData;
 
-  const metadata = opfData.package.metadata;
-  const manifestItems = opfData.package.manifest.item;
-  const spineItems = opfData.package.spine.itemref;
+  const { metadata, manifest, spine } = opfData.package;
+  const title = metadata["dc:title"]?._text || "Untitled";
+  const author = metadata["dc:creator"]?._text || "Unknown Author";
 
-  const title = findElement(metadata, "dc:title")?._text || "Untitled";
-  const author = findElement(metadata, "dc:creator")?._text || "Unknown Author";
-
-  // 3. Create a map of manifest IDs to file paths
+  // 3. Create a map of manifest item IDs to their file paths
   const manifestMap = new Map<string, string>();
-  manifestItems.forEach((item) => {
+  manifest.item.forEach(item => {
     manifestMap.set(item._attributes.id, item._attributes.href);
   });
 
-  // 4. Read spine items in order and parse their content
+  // 4. Read the content files (spine) in order and parse their HTML
   let bookContent: Paragraph[] = [];
-  for (const spineItem of spineItems) {
-    const idref = spineItem._attributes.idref;
-    const href = manifestMap.get(idref);
+  for (const spineItem of spine.itemref) {
+    const href = manifestMap.get(spineItem._attributes.idref);
     if (!href) continue;
     
     const contentPath = (opfDir ? `${opfDir}/` : '') + href;
@@ -159,13 +144,11 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
     if (contentFile) {
         const htmlContent = await contentFile.async("string");
         const paragraphs = parseHtmlContent(htmlContent, keyCounter);
-        if (bookContent.length > 0 && paragraphs.length > 0) {
-            // Add a blank line between sections from different files if the previous section didn't end with one.
-            if(bookContent[bookContent.length -1].type !== 'blank') {
-                bookContent.push({ type: 'blank', text: '', key: `para-${keyCounter.value++}` });
-            }
+        // Add a separator between chapter files for better spacing
+        if (bookContent.length > 0 && paragraphs.length > 0 && bookContent[bookContent.length - 1].type !== 'blank') {
+            bookContent.push({ type: 'blank', text: '', key: `para-${keyCounter.value++}` });
         }
-        bookContent = bookContent.concat(paragraphs);
+        bookContent.push(...paragraphs);
     }
   }
 
