@@ -78,7 +78,7 @@ export function ReaderClient({ bookId }: { bookId: string }) {
             if(isParagraphStart) {
               for (const pLine of paragraphLines) {
                 const pLineWeight = LINE_WEIGHTS[pLine.type] || 1;
-                if (currentWeight + pLineWeight > linesPerScreen) {
+                if (currentWeight + pLineWeight > linesPerScreen && currentPageLines.length > 0) {
                   newPages.push(currentPageLines);
                   currentPageLines = [];
                   currentWeight = 0;
@@ -92,7 +92,7 @@ export function ReaderClient({ bookId }: { bookId: string }) {
           }
           
           // Fallback for lines without paragraphId or if logic is midway
-          if (currentWeight + lineWeight > linesPerScreen) {
+          if (currentWeight + lineWeight > linesPerScreen && currentPageLines.length > 0) {
               newPages.push(currentPageLines);
               currentPageLines = [];
               currentWeight = 0;
@@ -185,15 +185,19 @@ export function ReaderClient({ bookId }: { bookId: string }) {
                 ) : (
                     <div className="prose prose-lg dark:prose-invert max-w-none" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}>
                         {currentContent.map((line, index) => {
+                            const lineProps = {
+                              key: index,
+                              className: cn(line.className)
+                            };
                             switch (line.type) {
                                 case 'title':
-                                    return <h1 key={index} className="font-headline !mb-2 !text-4xl">{line.text}</h1>;
+                                    return <h1 {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
                                 case 'subtitle':
-                                    return <h2 key={index} className="!mt-0 !text-2xl text-muted-foreground">{line.text}</h2>;
+                                    return <h2 {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
                                 case 'blank':
-                                    return <div key={index} className="h-[1em]"></div>;
+                                    return <div {...lineProps} className={cn("h-[1em]", line.className)}></div>;
                                 default:
-                                    return <p key={index} className="!my-0">{line.text}</p>;
+                                    return <p {...lineProps} className={cn("!my-0", line.className)}>{line.text}</p>;
                             }
                         })}
                     </div>

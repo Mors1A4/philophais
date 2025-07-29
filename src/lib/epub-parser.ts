@@ -93,10 +93,22 @@ function parseHtmlContent(html: string): Line[] {
             }
             
             const paragraphId = `p${pCounter++}`;
+            const className = el.getAttribute('class') || '';
+            const style = el.getAttribute('style') || '';
+            
+            let lineClassName = '';
+            if (className.includes('center') || style.includes('text-align: center')) {
+                lineClassName = 'text-center';
+            }
+            if(tagName === 'blockquote'){
+                lineClassName = 'pl-4 italic border-l-2 border-muted-foreground my-4';
+            }
+
+
             // Split text by newlines to create separate lines, preserving paragraphs
             text.split('\n').forEach(lineText => {
                 if (lineText.trim()) {
-                    lines.push({ type, text: lineText.trim(), paragraphId });
+                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName });
                 }
             });
         } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
