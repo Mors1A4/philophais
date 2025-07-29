@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height"; // Import the new hook
+import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height";
 
 interface ReaderClientProps {
   bookId: string;
@@ -34,7 +34,7 @@ const getParagraphClassName = (type: string, additionalClass?: string) => {
 
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
-  useVisualViewportHeight(); // ✨ 1. Set up the dynamic viewport height
+  useVisualViewportHeight();
 
   const { getBookById } = useBooks();
   const [book, setBook] = useState<Book | undefined>(undefined);
@@ -70,7 +70,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     
     const pageContainer = pageContainerRef.current;
     
-    // The height is now taken directly from the element, which is correctly sized by our --vh variable.
     const containerHeight = pageContainer.clientHeight;
     const containerWidth = pageContainer.clientWidth;
 
@@ -148,7 +147,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     finalizePage();
     document.body.removeChild(measurer);
     setPages(newPages);
-    // Ensure currentPage isn't out of bounds after repagination
     setCurrentPage(prev => Math.min(prev, newPages.length - 1));
     setIsPaginating(false);
   }, [book]);
@@ -188,14 +186,12 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     }
   };
 
-  // ✨ 2. Use a ResizeObserver for the most reliable pagination trigger.
   useEffect(() => {
     const mainContentArea = pageContainerRef.current;
     if (!book || !mainContentArea) return;
 
     let debounceTimer: NodeJS.Timeout;
     const observer = new ResizeObserver(() => {
-      // Debounce the paginate call to avoid excessive re-renders during resize.
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => paginate(), 150);
     });
@@ -205,7 +201,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     return () => observer.disconnect();
   }, [book, paginate]);
   
-  // This effect is now just for clearing chat state on page turn.
   useEffect(() => {
     setChatHistory("");
     setLastResponse(null);
@@ -224,7 +219,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, pages.length - 1));
   const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 0));
 
-  // ✨ 3. Apply the dynamic height to the root container.
   return (
     <div className="flex w-full flex-col" style={{ height: 'var(--vh, 100vh)' }}>
       <header ref={headerRef} className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
@@ -237,9 +231,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       
-      {/* The main content area now has a reliable parent height, so flex-1 works correctly. */}
       <main ref={pageContainerRef} className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative">
-        {/* We add overflow-y-auto here as a fallback in case of minor miscalculation, preventing the whole page from scrolling */}
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
