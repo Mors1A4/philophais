@@ -186,7 +186,7 @@ export function ReaderClient({ bookId }: { bookId: string }) {
                 ) : (
                     <div className="prose prose-lg dark:prose-invert max-w-none" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}>
                         {currentContent.map((line) => {
-                             const { key, ...lineProps } = line;
+                             const { key, paragraphId, ...lineProps } = line;
                             switch (line.type) {
                                 case 'title':
                                     return <h1 key={key} {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
