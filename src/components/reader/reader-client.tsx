@@ -43,7 +43,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const [isPaginating, setIsPaginating] = useState(true);
   
   const [question, setQuestion] = useState("");
-  const [qaResult, setQaResult] = useState<AnswerQuestionOutput | null>(null);
+  const [chatHistory, setChatHistory] = useState("");
   const [isAsking, setIsAsking] = useState(false);
   const [accordionValue, setAccordionValue] = useState<string | undefined>();
   
@@ -152,17 +152,28 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   }, [book]);
 
   const handleAskQuestion = async () => {
-    if (!question.trim() || !pages[currentPage]) return;
+    const currentQuestion = question.trim();
+    if (!currentQuestion || !pages[currentPage]) return;
     
     setIsAsking(true);
-    setQaResult(null);
     setAccordionValue("qa-result");
+    setQuestion("");
+
+    const newHistoryWithQuestion = `${chatHistory}\n\n**You:** ${currentQuestion}\n\n**Assistant:** Thinking...`;
+    setChatHistory(newHistoryWithQuestion);
 
     try {
       const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
-      const input: AnswerQuestionInput = { question, pageContent };
+      const input: AnswerQuestionInput = { 
+        question: currentQuestion, 
+        pageContent, 
+        chatHistory 
+      };
       const result = await answerQuestion(input);
-      setQaResult(result);
+      
+      const newHistoryWithAnswer = `${chatHistory}\n\n**You:** ${currentQuestion}\n\n**Assistant:** ${result.answer}`;
+      setChatHistory(newHistoryWithAnswer.trim());
+
     } catch (error) {
       console.error("Error asking question:", error);
       toast({
@@ -170,7 +181,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         title: "AI Error",
         description: "Could not get an answer from the assistant. Please try again.",
       });
-      setAccordionValue(undefined);
+      setChatHistory(chatHistory); // Revert history on error
     } finally {
       setIsAsking(false);
     }
@@ -181,6 +192,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     window.addEventListener('resize', paginate);
     return () => window.removeEventListener('resize', paginate);
   }, [paginate]);
+
+  // Reset chat history when page changes
+  useEffect(() => {
+    setChatHistory("");
+    setAccordionValue(undefined);
+  }, [currentPage]);
+
 
   if (!book) {
     return (
@@ -234,11 +252,12 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                 <AccordionContent>
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg font-headline">Assistant's Answer</CardTitle>
+                        <CardTitle className="text-lg font-headline">Assistant Chat</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        {isAsking && <p className="text-muted-foreground">Thinking...</p>}
-                        {qaResult && <p className="prose prose-sm dark:prose-invert max-w-none">{qaResult.answer}</p>}
+                         <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+                          {chatHistory || "Ask a question to start the conversation."}
+                        </div>
                       </CardContent>
                     </Card>
                 </AccordionContent>
@@ -258,10 +277,16 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                       placeholder="Ask a question about this page..."
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAskQuestion();
+                        }
+                      }}
                       className="text-base"
                       rows={1}
                     />
-                    <AccordionTrigger>
+                    <AccordionTrigger asChild>
                          <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
                           {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                           <span className="sr-only">Ask</span>

@@ -16,7 +16,14 @@ const prompt = ai.definePrompt({
   name: 'qAndAPrompt',
   input: {schema: AnswerQuestionInputSchema},
   output: {schema: AnswerQuestionOutputSchema},
-  prompt: `You are an expert reading assistant. Your task is to answer the user's question based ONLY on the provided page content. If the answer cannot be found in the text, state that clearly.
+  prompt: `You are an expert reading assistant. Your task is to answer the user's question based ONLY on the provided page content and the context of the previous conversation. If the answer cannot be found in the text, state that clearly.
+
+{{#if chatHistory}}
+Conversation History:
+---
+{{{chatHistory}}}
+---
+{{/if}}
 
 Page Content:
 ---
