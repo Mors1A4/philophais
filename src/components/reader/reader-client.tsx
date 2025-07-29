@@ -324,14 +324,19 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
                 {highlightedText}
               </span>
             </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="space-y-4">
-                <p className="text-sm border-l-2 border-accent pl-2 italic">"{note.selectedText}"</p>
-                <p className="text-sm">{note.text}</p>
-                <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete Note
-                </Button>
-              </div>
+            <PopoverContent className="w-80 p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                <div className="flex flex-col">
+                    <div className={cn("p-3", noteColorBgClasses[note.color])}>
+                        <p className="font-bold text-sm text-black/70">Note</p>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <p className="text-sm border-l-2 border-muted-foreground pl-3 italic text-muted-foreground">"{note.selectedText}"</p>
+                        <p className="text-base">{note.text}</p>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete Note
+                        </Button>
+                    </div>
+                </div>
             </PopoverContent>
           </Popover>
         );
@@ -577,5 +582,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
+
+    
 
     
