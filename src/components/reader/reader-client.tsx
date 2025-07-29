@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useBooks } from "@/hooks/use-books";
@@ -43,10 +44,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   }
   
   // Find the index of the first paragraph that is not a title, subtitle, or blank space.
-  const firstContentIndex = book.content.findIndex(p => p.type !== 'title' && p.type !== 'subtitle' && p.type !== 'blank');
+  const firstContentIndex = book.content.findIndex(p => p.type !== 'title' && p.type !== 'subtitle' && p.type !== 'blank' && p.text.length > 100);
   
   // If no content is found, display nothing, otherwise slice the array from that point.
-  const contentToDisplay = firstContentIndex === -1 ? [] : book.content.slice(firstContentIndex);
+  const contentToDisplay = firstContentIndex === -1 ? book.content : book.content.slice(firstContentIndex);
 
 
   return (
