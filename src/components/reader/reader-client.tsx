@@ -66,7 +66,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
-  const pageTurnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const prevButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -311,7 +310,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setActiveSelection(null);
   }, [currentPage]);
 
-  const changePage = (direction: 'next' | 'prev') => {
+  const changePage = async (direction: 'next' | 'prev') => {
     if (isTurningPage) return;
     setIsTurningPage(true);
 
@@ -321,15 +320,12 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
     if (newPage !== currentPage) {
       setCurrentPage(newPage);
-      handleProgressUpdate(newPage);
+      await handleProgressUpdate(newPage);
     }
-
-    if (pageTurnTimeoutRef.current) clearTimeout(pageTurnTimeoutRef.current);
-    pageTurnTimeoutRef.current = setTimeout(() => {
-      setIsTurningPage(false);
-      if (direction === 'next') nextButtonRef.current?.blur();
-      else prevButtonRef.current?.blur();
-    }, 200);
+    
+    if (direction === 'next') nextButtonRef.current?.blur();
+    else prevButtonRef.current?.blur();
+    setIsTurningPage(false);
   };
   
   const goToNextPage = () => changePage('next');
@@ -356,7 +352,12 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       
-      <main ref={pageContainerRef} className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative" onMouseUp={handleTextSelection}>
+      <main 
+        ref={pageContainerRef} 
+        className="flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative" 
+        onMouseUp={handleTextSelection}
+        onTouchEnd={handleTextSelection}
+      >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
