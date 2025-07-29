@@ -55,14 +55,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchBook = async () => {
-      const bookData = await getBookById(bookId);
-      setBook(bookData);
-    };
-    fetchBook();
-  }, [bookId, getBookById]);
-
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
     
@@ -151,6 +143,24 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setIsPaginating(false);
   }, [book]);
 
+  useEffect(() => {
+    const fetchBook = async () => {
+      const bookData = await getBookById(bookId);
+      setBook(bookData);
+    };
+    fetchBook();
+  }, [bookId, getBookById]);
+  
+  useEffect(() => {
+    if (book) {
+      // Defer pagination until the next render cycle to ensure DOM is ready
+      const timer = setTimeout(() => {
+        paginate();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [book, paginate]);
+
   const handleAskQuestion = async () => {
     if (!question.trim() || !pages[currentPage]) {
       return;
@@ -185,21 +195,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       setQuestion("");
     }
   };
-
-  useEffect(() => {
-    const mainContentArea = pageContainerRef.current;
-    if (!book || !mainContentArea) return;
-
-    let debounceTimer: NodeJS.Timeout;
-    const observer = new ResizeObserver(() => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => paginate(), 150);
-    });
-
-    observer.observe(mainContentArea);
-
-    return () => observer.disconnect();
-  }, [book, paginate]);
   
   useEffect(() => {
     setChatHistory("");
