@@ -14,15 +14,27 @@ import { Label } from "@/components/ui/label";
 import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
 import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 
 export default function LoginPage() {
-  useAuthRedirect(false);
+  const { authStatus } = useAuthRedirect(false);
   const { login } = useAuth();
+  
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const handleAuthAction = (e: React.FormEvent) => {
     e.preventDefault();
-    login();
+    const email = emailRef.current?.value;
+    const password = passwordRef.current?.value;
+    if (email && password) {
+      login(email, password);
+    }
   };
+
+  if (authStatus === 'loading') {
+    return <div className="flex h-screen w-full items-center justify-center">Loading...</div>;
+  }
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center p-4">
@@ -48,11 +60,11 @@ export default function LoginPage() {
             <form onSubmit={handleAuthAction} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="user@example.com" required />
+                <Input id="email" type="email" placeholder="user@example.com" required ref={emailRef} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required />
+                <Input id="password" type="password" required ref={passwordRef}/>
               </div>
               <Button type="submit" className="w-full font-headline" variant="default">
                 Login

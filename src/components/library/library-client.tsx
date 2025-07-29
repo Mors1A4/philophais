@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
+import { useAuthRedirect } from "@/hooks/use-auth";
 import { useBooks } from "@/hooks/use-books";
 import { BookCard } from "./book-card";
 import { EmptyLibrary } from "./empty-library";
@@ -10,12 +10,28 @@ import { LogOut } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { getAuth, signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
 
 export function LibraryClient() {
-  const authStatus = useAuthRedirect(true);
+  const { authStatus } = useAuthRedirect(true);
   const { books, addBook, clearBooks, isLoading, deleteBook } = useBooks();
-  const { logout } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const auth = getAuth();
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: "An error occurred while logging out.",
+      });
+    }
+  };
 
   const handleDeleteBook = (bookId: string) => {
     deleteBook(bookId);

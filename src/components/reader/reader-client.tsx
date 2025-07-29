@@ -7,7 +7,7 @@ import { useAuthRedirect } from "@/hooks/use-auth";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import type { Paragraph, AnswerQuestionInput, AnswerQuestionOutput } from "@/lib/types";
+import type { Paragraph, AnswerQuestionInput, Book } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
 import { answerQuestion } from "@/ai/flows/q-and-a-flow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +35,7 @@ const getParagraphClassName = (type: string, additionalClass?: string) => {
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   const { getBookById } = useBooks();
-  const book = getBookById(bookId);
+  const [book, setBook] = useState<Book | undefined>(undefined);
   const { toast } = useToast();
 
   const [pages, setPages] = useState<Paragraph[][]>([]);
@@ -51,6 +51,14 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const fetchBook = async () => {
+      const bookData = await getBookById(bookId);
+      setBook(bookData);
+    };
+    fetchBook();
+  }, [bookId, getBookById]);
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current || !headerRef.current || !footerRef.current) return;
@@ -189,10 +197,12 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   };
 
   useEffect(() => {
-    paginate();
+    if (book) {
+      paginate();
+    }
     window.addEventListener('resize', paginate);
     return () => window.removeEventListener('resize', paginate);
-  }, [paginate]);
+  }, [book, paginate]);
 
   // Reset chat history and response when page changes
   useEffect(() => {
@@ -205,8 +215,8 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   if (!book) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4">
-        <p>Book not found.</p>
-        <Button asChild><Link href="/library">Back to Library</Link></Button>
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p>Loading book...</p>
       </div>
     );
   }

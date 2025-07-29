@@ -14,15 +14,28 @@ import { Label } from "@/components/ui/label";
 import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
 import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 
 export default function RegisterPage() {
-  useAuthRedirect(false);
+  const { authStatus } = useAuthRedirect(false);
   const { register } = useAuth();
+  
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null); // Though not used by Firebase Auth by default
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    register();
+    const email = emailRef.current?.value;
+    const password = passwordRef.current?.value;
+    if (email && password) {
+      register(email, password);
+    }
   };
+
+  if (authStatus === 'loading') {
+    return <div className="flex h-screen w-full items-center justify-center">Loading...</div>;
+  }
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center p-4">
@@ -50,7 +63,7 @@ export default function RegisterPage() {
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
-                <Input id="name" type="text" placeholder="Your Name" required />
+                <Input id="name" type="text" placeholder="Your Name" required ref={nameRef} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -59,11 +72,12 @@ export default function RegisterPage() {
                   type="email"
                   placeholder="user@example.com"
                   required
+                  ref={emailRef}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required />
+                <Input id="password" type="password" required ref={passwordRef} />
               </div>
               <Button type="submit" className="w-full font-headline">
                 Register
