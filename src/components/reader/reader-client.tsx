@@ -41,6 +41,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       </div>
     );
   }
+  
+  // Find the index of the first paragraph that is not a title, subtitle, or blank space.
+  const firstContentIndex = book.content.findIndex(p => p.type !== 'title' && p.type !== 'subtitle' && p.type !== 'blank');
+  
+  // If no content is found, display nothing, otherwise slice the array from that point.
+  const contentToDisplay = firstContentIndex === -1 ? [] : book.content.slice(firstContentIndex);
+
 
   return (
     <div className="flex w-full flex-col">
@@ -57,14 +64,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       <main className="prose prose-lg dark:prose-invert mx-auto max-w-3xl p-4 md:p-8">
-        {book.content.map((p) => {
+        {contentToDisplay.map((p) => {
           if (p.type === 'blank') {
             return <div key={p.key} className="h-4"></div>;
           }
           return (
             <p key={p.key} className={getParagraphClassName(p.type, p.className)}>
               {p.text}
-              <span className="select-none text-muted-foreground/50">{' <ENDPARA>'}</span>
             </p>
           );
         })}
