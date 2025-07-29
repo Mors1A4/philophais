@@ -15,6 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import Link from "next/link";
 
 interface BookCardProps {
   book: Book;
@@ -36,7 +37,7 @@ export function BookCard({ book, onDelete }: BookCardProps) {
       onMouseEnter={() => setIsMenuVisible(true)}
       onMouseLeave={() => setIsMenuVisible(false)}
     >
-      <div className="block">
+      <Link href={`/read/${book.id}`} className="block">
         <Card className="overflow-hidden transition-all duration-300 ease-in-out group-hover:shadow-lg group-hover:-translate-y-1">
           <CardContent className="p-0">
             <div className="aspect-[2/3] w-full overflow-hidden">
@@ -55,7 +56,7 @@ export function BookCard({ book, onDelete }: BookCardProps) {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </Link>
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button
