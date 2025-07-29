@@ -43,6 +43,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const [pages, setPages] = useState<Paragraph[][]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [isPaginating, setIsPaginating] = useState(true);
+  const [isTurningPage, setIsTurningPage] = useState(false);
   
   const [question, setQuestion] = useState("");
   const [chatHistory, setChatHistory] = useState("");
@@ -54,7 +55,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
-  const isUpdatingProgress = useRef(false);
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
@@ -143,7 +143,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
     let startingPage = 0;
     if (book.lastReadParagraphKey) {
-        const pageIndex = newPages.findIndex(page => page[0]?.key === book.lastReadParagraphKey);
+        const pageIndex = newPages.findIndex(page => page.find(p => p.key === book.lastReadParagraphKey));
         if (pageIndex !== -1) {
             startingPage = pageIndex;
         }
@@ -163,7 +163,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   
   useEffect(() => {
     if (book) {
-      // Defer pagination until after the first render to ensure layout is stable
       const timer = setTimeout(() => {
         paginate();
       }, 0);
@@ -171,20 +170,22 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     }
   }, [book, paginate]);
 
-  useEffect(() => {
-    if (isUpdatingProgress.current || isPaginating || !pages[currentPage]) {
-      return;
+  const handleProgressUpdate = async (newPageIndex: number) => {
+    if (!book || !pages[newPageIndex]) return;
+    const paragraphKey = pages[newPageIndex]?.[0]?.key;
+    if (paragraphKey && book.lastReadParagraphKey !== paragraphKey) {
+      try {
+        await updateBookProgress(book.id, paragraphKey);
+      } catch (err) {
+        console.error("Failed to update progress:", err);
+        toast({
+            variant: "destructive",
+            title: "Sync Error",
+            description: "Could not save reading progress."
+        });
+      }
     }
-    const paragraphKey = pages[currentPage]?.[0]?.key;
-    if (paragraphKey && book && book.lastReadParagraphKey !== paragraphKey) {
-        isUpdatingProgress.current = true;
-        updateBookProgress(book.id, paragraphKey)
-            .catch(err => console.error("Failed to update progress:", err))
-            .finally(() => {
-                isUpdatingProgress.current = false;
-            });
-    }
-  }, [currentPage, pages, book, isPaginating, updateBookProgress]);
+  };
 
   const handleAskQuestion = async () => {
     if (!question.trim() || !pages[currentPage]) {
@@ -236,8 +237,23 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     );
   }
 
-  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, pages.length - 1));
-  const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 0));
+  const goToNextPage = async () => {
+    if (isTurningPage || currentPage >= pages.length - 1) return;
+    setIsTurningPage(true);
+    const newPage = Math.min(currentPage + 1, pages.length - 1);
+    setCurrentPage(newPage);
+    await handleProgressUpdate(newPage);
+    setIsTurningPage(false);
+  };
+
+  const goToPrevPage = async () => {
+    if (isTurningPage || currentPage === 0) return;
+    setIsTurningPage(true);
+    const newPage = Math.max(currentPage - 1, 0);
+    setCurrentPage(newPage);
+    await handleProgressUpdate(newPage);
+    setIsTurningPage(false);
+  };
 
   return (
     <div className="flex w-full flex-col" style={{ height: 'var(--vh, 100vh)' }}>
@@ -297,13 +313,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         <div className="w-full max-w-3xl mx-auto p-2">
           <div className="flex flex-col sm:flex-row items-center gap-2">
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating}>
+              <Button variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
                 <ChevronLeft />
               </Button>
               <span className="text-sm text-muted-foreground font-mono w-24 text-center">
                 {isPaginating ? '...' : `Page ${currentPage + 1}/${pages.length}`}
               </span>
-              <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating}>
+              <Button variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
                 <ChevronRight />
               </Button>
             </div>
@@ -332,3 +348,5 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
+
+    

@@ -102,7 +102,7 @@ export function useBooks() {
         await updateDoc(bookDocRef, {
             lastReadParagraphKey: paragraphKey
         });
-        // Also update local state to prevent unnecessary re-fetches
+        // Also update local state to prevent unnecessary re-fetches and keep UI consistent
         setBooks(prev => prev.map(b => b.id === bookId ? { ...b, lastReadParagraphKey: paragraphKey } : b));
     } catch (error) {
         console.error("Failed to update book progress in Firestore", error);
@@ -138,3 +138,5 @@ export function useBooks() {
 
   return { books, addBook, getBookById, clearBooks, isLoading, deleteBook, updateBookProgress };
 }
+
+    
