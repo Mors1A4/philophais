@@ -500,63 +500,82 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       )}
 
       <footer ref={footerRef} className="shrink-0 border-t relative z-10">
-        <div className="w-full max-w-3xl mx-auto p-2">
-           {activeSelection && (
-            <div className="flex items-center justify-center gap-3 py-2">
-              {NOTE_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(color)}
-                  className={cn(
-                    "h-6 w-6 rounded-full transition-all",
-                    noteColorBgClasses[color],
-                    selectedColor === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110',
-                    noteColorRingClasses[color]
-                  )}
-                  aria-label={`Select ${color} color`}
+        <div className="w-full max-w-3xl mx-auto p-2 space-y-2">
+           {activeSelection ? (
+            <>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                  {NOTE_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setSelectedColor(color)}
+                      className={cn(
+                        "h-6 w-6 rounded-full transition-all",
+                        noteColorBgClasses[color],
+                        selectedColor === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110',
+                        noteColorRingClasses[color]
+                      )}
+                      aria-label={`Select ${color} color`}
+                    />
+                  ))}
+              </div>
+              <div className="flex w-full items-center gap-2">
+                 <Textarea
+                    placeholder="Add a note to your highlight..."
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSaveNote();
+                        }
+                    }}
+                    className="text-base min-h-[40px] resize-none"
+                    rows={1}
                 />
-              ))}
-            </div>
-          )}
-          <div className="flex w-full items-center gap-2">
-              <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
-                  <ChevronLeft />
-              </Button>
-              <span className="text-sm text-muted-foreground font-mono w-24 text-center shrink-0">
-                  {isPaginating ? '...' : `Page ${currentPage + 1} / ${pages.length}`}
-              </span>
-              <Textarea
-                  placeholder={activeSelection ? "Add a note to your highlight..." : "Ask a question about this page..."}
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if(activeSelection) handleSaveNote(); else handleAskQuestion();
-                      }
-                  }}
-                  className="text-base min-h-[40px] resize-none"
-                  rows={1}
-              />
-              {activeSelection ? (
-                  <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--primary))`}}>
-                      {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
-                      <span className="sr-only">Save Note</span>
-                  </Button>
-              ) : (
-                <>
+                <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--primary))`}}>
+                    {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
+                    <span className="sr-only">Save Note</span>
+                </Button>
+              </div>
+            </>
+           ) : (
+            <>
+              <div className="flex w-full items-center gap-2">
+                  <Textarea
+                      placeholder="Ask a question about this page..."
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleAskQuestion();
+                          }
+                      }}
+                      className="text-base min-h-[40px] resize-none"
+                      rows={1}
+                  />
                   <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
                       {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
                       <span className="sr-only">Ask</span>
                   </Button>
-                  <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
-                      <ChevronRight />
-                  </Button>
-                </>
-              )}
-          </div>
+              </div>
+               <div className="flex w-full items-center justify-between">
+                <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
+                    <ChevronLeft />
+                </Button>
+                <span className="text-sm text-muted-foreground font-mono shrink-0">
+                    {isPaginating ? '...' : `Page ${currentPage + 1} / ${pages.length}`}
+                </span>
+                <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
+                    <ChevronRight />
+                </Button>
+              </div>
+            </>
+           )}
         </div>
       </footer>
     </div>
   );
 }
+
+    
