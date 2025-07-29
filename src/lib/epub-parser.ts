@@ -2,7 +2,7 @@
 
 import JSZip from "jszip";
 import { xml2js } from "xml-js";
-import type { Book, Paragraph } from "./types"; // Assuming types are in `src/lib/types.ts`
+import type { Book, Paragraph } from "./types";
 
 // Helper interfaces for parsing the EPUB's structure files
 interface ManifestItem {
@@ -22,7 +22,8 @@ interface OpfData {
 // Keywords to identify and filter out licensing/legal text
 const LICENSE_KEYWORDS = [
     'all rights reserved', 'public domain', 'creative commons', 'gutenberg',
-    'copyright', 'license', 'terms of use', 'no cost and with almost no restrictions'
+    'copyright', 'license', 'terms of use', 'no cost and with almost no restrictions',
+    'disclaimer', 'warranty', 'indemnify', 'limitation of liability'
 ];
 
 /**
@@ -50,12 +51,13 @@ function parseHtmlContent(html: string, keyCounter: { value: number }): Paragrap
     });
 
     const paragraphs: Paragraph[] = [];
-    // Query for all common block-level elements that structure content
-    const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div, blockquote"));
+    // A single selector for all block-level elements we care about
+    const blockSelector = "p, h1, h2, h3, h4, h5, h6, div, blockquote";
+    const blockElements = Array.from(tempDiv.querySelectorAll(blockSelector));
 
     // Fallback for content that isn't wrapped in block elements
-    if (blockElements.length === 0) {
-        const text = tempDiv.textContent?.trim();
+    if (blockElements.length === 0 && tempDiv.textContent) {
+        const text = tempDiv.textContent.trim();
         if (text && !isLicensingInfo(text)) {
             // Split by double newlines to simulate paragraphs
             text.split('\n\n').forEach(paraText => {
@@ -69,6 +71,11 @@ function parseHtmlContent(html: string, keyCounter: { value: number }): Paragrap
 
     // Process each block element
     blockElements.forEach(el => {
+        // Skip elements that contain other block elements to prevent duplication.
+        if (el.querySelector(blockSelector)) {
+            return;
+        }
+
         const text = el.textContent?.trim();
 
         if (text && !isLicensingInfo(text)) {
@@ -99,6 +106,7 @@ function parseHtmlContent(html: string, keyCounter: { value: number }): Paragrap
 
     return paragraphs;
 }
+
 
 /**
  * Main function to parse an EPUB file.
@@ -138,6 +146,7 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
     const href = manifestMap.get(spineItem._attributes.idref);
     if (!href) continue;
     
+    // Correctly handle relative paths from the .opf file
     const contentPath = (opfDir ? `${opfDir}/` : '') + href;
     const contentFile = zip.file(contentPath);
     

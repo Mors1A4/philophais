@@ -10,6 +10,22 @@ interface ReaderClientProps {
   bookId: string;
 }
 
+const getParagraphClassName = (type: string, additionalClass?: string) => {
+  let baseClasses = 'my-0';
+  switch (type) {
+    case 'title':
+      baseClasses += ' text-3xl font-bold font-headline mt-8 mb-4';
+      break;
+    case 'subtitle':
+      baseClasses += ' text-xl font-semibold font-headline mt-6 mb-3 text-muted-foreground';
+      break;
+    default:
+      baseClasses += ' my-0'; // Default content style
+      break;
+  }
+  return `${baseClasses} ${additionalClass || ''}`.trim();
+}
+
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   const { getBookById } = useBooks();
@@ -29,9 +45,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   return (
     <div className="flex w-full flex-col">
        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
-        <div className="flex flex-col">
+        <div className="flex flex-col overflow-hidden">
             <h1 className="font-headline text-xl font-bold truncate">{book.title}</h1>
-            <p className="text-sm text-muted-foreground">{book.author}</p>
+            <p className="text-sm text-muted-foreground truncate">{book.author}</p>
         </div>
         <Button asChild variant="ghost">
           <Link href="/library">
@@ -46,7 +62,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
             return <div key={p.key} className="h-4"></div>;
           }
           return (
-            <p key={p.key} className={`${p.className || ''} my-0`}>
+            <p key={p.key} className={getParagraphClassName(p.type, p.className)}>
               {p.text}
               <span className="select-none text-muted-foreground/50">{' <ENDPARA>'}</span>
             </p>
