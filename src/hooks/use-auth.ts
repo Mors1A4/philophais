@@ -33,15 +33,16 @@ export function useAuthRedirect(shouldBeAuthenticated: boolean) {
   const [authStatus, setAuthStatus] = useState<"loading" | "auth" | "no-auth">("loading");
 
   useEffect(() => {
+    let token: string | null = null;
     try {
-      const token = localStorage.getItem(AUTH_KEY);
-      if (token) {
-        setAuthStatus("auth");
-      } else {
-        setAuthStatus("no-auth");
-      }
+      token = localStorage.getItem(AUTH_KEY);
     } catch (error) {
       console.error("Could not access localStorage:", error);
+    }
+    
+    if (token) {
+      setAuthStatus("auth");
+    } else {
       setAuthStatus("no-auth");
     }
   }, []);
