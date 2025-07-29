@@ -162,7 +162,14 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const handleTextSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      if(activeSelection) setActiveSelection(null);
+      if(activeSelection) {
+        // Simple heuristic: if the user clicks away, clear the selection.
+        // A more robust solution might check if the click is outside the content area.
+        const isClickingTextarea = document.activeElement?.tagName === 'TEXTAREA';
+        if (!isClickingTextarea) {
+            setActiveSelection(null);
+        }
+      }
       return;
     }
 
@@ -180,19 +187,22 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     };
     
     const paragraphKey = paragraphEl.getAttribute('data-paragraph-key')!;
-    const paragraphText = book?.content.find(p => p.key === paragraphKey)?.text || '';
     
     const clone = range.cloneRange();
     clone.selectNodeContents(paragraphEl);
     clone.setEnd(range.startContainer, range.startOffset);
     const startIndex = clone.toString().length;
-    const endIndex = startIndex + range.toString().length;
     
     const text = range.toString();
+    const endIndex = startIndex + text.length;
+
     if (text.trim()) {
       setActiveSelection({ paragraphKey, startIndex, endIndex, text });
       setQuestion("");
     }
+    
+    // Clear the native selection so our custom highlight takes over
+    selection.removeAllRanges();
   };
 
   const handleSaveNote = async () => {
@@ -232,45 +242,69 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     }
   };
 
-  const pageNotes = useMemo(() => {
-    if (!book?.notes || !pages[currentPage]) return [];
-    const pageParaKeys = new Set(pages[currentPage].map(p => p.key));
-    return book.notes.filter(n => pageParaKeys.has(n.paragraphKey));
-  }, [book, pages, currentPage]);
+  const pageParaKeys = useMemo(() => {
+    if (!pages[currentPage]) return new Set();
+    return new Set(pages[currentPage].map(p => p.key));
+  }, [pages, currentPage]);
 
   const renderParagraphWithHighlights = (p: Paragraph) => {
-    const notesInPara = pageNotes.filter(n => n.paragraphKey === p.key).sort((a,b) => a.startIndex - b.startIndex);
-    if (notesInPara.length === 0) return p.text;
+    if (!pageParaKeys.has(p.key)) return p.text;
+
+    const notesInPara = book?.notes?.filter(n => n.paragraphKey === p.key) || [];
+    const selection = (activeSelection?.paragraphKey === p.key) ? activeSelection : null;
+    
+    // Combine notes and selection into a single list of "marks" to render
+    const marks = [
+      ...notesInPara.map(n => ({...n, type: 'note'})),
+      ...(selection ? [{...selection, type: 'selection'}] : [])
+    ].sort((a, b) => a.startIndex - b.startIndex);
+
+    if (marks.length === 0) return p.text;
     
     let lastIndex = 0;
     const segments: React.ReactNode[] = [];
-    notesInPara.forEach((note, i) => {
-      if (note.startIndex > lastIndex) {
-        segments.push(p.text.substring(lastIndex, note.startIndex));
+
+    marks.forEach((mark, i) => {
+      // Add text before the mark
+      if (mark.startIndex > lastIndex) {
+        segments.push(<React.Fragment key={`text-${i}`}>{p.text.substring(lastIndex, mark.startIndex)}</React.Fragment>);
       }
-      segments.push(
-        <Popover key={note.id}>
-          <PopoverTrigger asChild>
-            <span className="bg-accent/30 cursor-pointer" data-note-id={note.id}>
-              {p.text.substring(note.startIndex, note.endIndex)}
-            </span>
-          </PopoverTrigger>
-          <PopoverContent className="w-80">
-            <div className="space-y-4">
-              <p className="text-sm border-l-2 border-accent pl-2 italic">"{note.selectedText}"</p>
-              <p className="text-sm">{note.text}</p>
-              <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
-                <Trash2 className="mr-2 h-4 w-4" /> Delete Note
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      );
-      lastIndex = note.endIndex;
+
+      const highlightedText = p.text.substring(mark.startIndex, mark.endIndex);
+
+      if (mark.type === 'note') {
+        segments.push(
+          <Popover key={(mark as Note).id}>
+            <PopoverTrigger asChild>
+              <span className="bg-accent/30 cursor-pointer" data-note-id={(mark as Note).id}>
+                {highlightedText}
+              </span>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="space-y-4">
+                <p className="text-sm border-l-2 border-accent pl-2 italic">"{(mark as Note).selectedText}"</p>
+                <p className="text-sm">{(mark as Note).text}</p>
+                <Button variant="destructive" size="sm" onClick={() => handleDeleteNote(mark as Note)} className="w-full">
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Note
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      } else { // It's the active selection
+         segments.push(
+           <span key="selection" className="bg-yellow-400/40">
+             {highlightedText}
+           </span>
+         );
+      }
+
+      lastIndex = mark.endIndex;
     });
 
+    // Add any remaining text after the last mark
     if (lastIndex < p.text.length) {
-      segments.push(p.text.substring(lastIndex));
+      segments.push(<React.Fragment key="text-end">{p.text.substring(lastIndex)}</React.Fragment>);
     }
     
     return <>{segments}</>;
