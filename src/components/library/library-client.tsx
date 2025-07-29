@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuthRedirect } from "@/hooks/use-auth";
@@ -44,9 +45,9 @@ export function LibraryClient() {
   if (authStatus === "loading" || isLoading) {
     return (
         <div className="flex min-h-screen w-full flex-col">
-            <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-8 w-24" />
+            <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-primary px-4 md:px-8">
+              <Skeleton className="h-8 w-48 bg-primary/50" />
+              <Skeleton className="h-8 w-24 bg-primary/50" />
             </header>
             <main className="flex-1 p-4 md:p-8">
               <div className="mb-8 flex items-center justify-between">
@@ -69,9 +70,9 @@ export function LibraryClient() {
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
+      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-primary-foreground/20 bg-primary px-4 text-primary-foreground md:px-8">
         <Logo />
-        <Button onClick={logout} variant="ghost" size="sm" className="font-headline">
+        <Button onClick={logout} variant="ghost" size="sm" className="font-headline hover:bg-primary-foreground/10 hover:text-primary-foreground">
           <LogOut className="mr-2 h-4 w-4" />
           Logout
         </Button>
