@@ -13,6 +13,7 @@ export interface Book {
   author: string;
   cover: string; // URL to an image
   content: Paragraph[];
+  lastReadParagraphKey?: string;
 }
 
 // Schema for the AI question answering flow

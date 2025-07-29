@@ -36,7 +36,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   useVisualViewportHeight();
 
-  const { getBookById } = useBooks();
+  const { getBookById, updateBookProgress } = useBooks();
   const [book, setBook] = useState<Book | undefined>(undefined);
   const { toast } = useToast();
 
@@ -54,6 +54,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const headerRef = useRef<HTMLElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const responseCardRef = useRef<HTMLDivElement>(null);
+  const isUpdatingProgress = useRef(false);
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
@@ -139,7 +140,16 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     finalizePage();
     document.body.removeChild(measurer);
     setPages(newPages);
-    setCurrentPage(prev => Math.min(prev, newPages.length - 1));
+
+    let startingPage = 0;
+    if (book.lastReadParagraphKey) {
+        const pageIndex = newPages.findIndex(page => page[0]?.key === book.lastReadParagraphKey);
+        if (pageIndex !== -1) {
+            startingPage = pageIndex;
+        }
+    }
+    setCurrentPage(startingPage);
+    
     setIsPaginating(false);
   }, [book]);
 
@@ -153,13 +163,27 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   
   useEffect(() => {
     if (book) {
-      // Defer pagination until the next render cycle to ensure DOM is ready
       const timer = setTimeout(() => {
         paginate();
       }, 0);
       return () => clearTimeout(timer);
     }
   }, [book, paginate]);
+
+  useEffect(() => {
+    if (isUpdatingProgress.current || isPaginating || !pages[currentPage]) {
+      return;
+    }
+    const paragraphKey = pages[currentPage]?.[0]?.key;
+    if (paragraphKey && book && book.lastReadParagraphKey !== paragraphKey) {
+        isUpdatingProgress.current = true;
+        updateBookProgress(book.id, paragraphKey)
+            .catch(err => console.error("Failed to update progress:", err))
+            .finally(() => {
+                isUpdatingProgress.current = false;
+            });
+    }
+  }, [currentPage, pages, book, isPaginating, updateBookProgress]);
 
   const handleAskQuestion = async () => {
     if (!question.trim() || !pages[currentPage]) {

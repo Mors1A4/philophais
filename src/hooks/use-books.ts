@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Book } from "@/lib/types";
-import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, where, getDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
@@ -63,19 +63,27 @@ export function useBooks() {
     
     // First, try to find the book in the local state
     const localBook = books.find(book => book.id === id);
-    if (localBook) {
+    if (localBook && localBook.content.length > 0) { // check for content to ensure it's the full book
       return localBook;
     }
 
-    // If not found locally, fetch from Firestore
+    // If not found locally or is partial, fetch from Firestore
     setIsLoading(true);
     try {
       const bookDocRef = doc(db, "users", userId, "books", id);
       const bookDoc = await getDoc(bookDocRef);
       if (bookDoc.exists()) {
         const bookData = { ...bookDoc.data(), id: bookDoc.id } as Book;
-        // Optionally update the local state
-        setBooks(prev => [...prev, bookData]);
+        // Update the local state with the full book data
+        setBooks(prev => {
+            const index = prev.findIndex(b => b.id === id);
+            if (index > -1) {
+                const newBooks = [...prev];
+                newBooks[index] = bookData;
+                return newBooks;
+            }
+            return [...prev, bookData];
+        });
         return bookData;
       }
       return undefined;
@@ -87,6 +95,22 @@ export function useBooks() {
     }
   }, [books, userId]);
   
+  const updateBookProgress = useCallback(async (bookId: string, paragraphKey: string) => {
+    if (!userId) return;
+    try {
+        const bookDocRef = doc(db, "users", userId, "books", bookId);
+        await updateDoc(bookDocRef, {
+            lastReadParagraphKey: paragraphKey
+        });
+        // Also update local state to prevent unnecessary re-fetches
+        setBooks(prev => prev.map(b => b.id === bookId ? { ...b, lastReadParagraphKey: paragraphKey } : b));
+    } catch (error) {
+        console.error("Failed to update book progress in Firestore", error);
+        // We throw the error so the caller can handle it if needed
+        throw error;
+    }
+  }, [userId]);
+
   const clearBooks = useCallback(async () => {
     if (!userId) return;
     try {
@@ -112,5 +136,5 @@ export function useBooks() {
   }, [userId]);
 
 
-  return { books, addBook, getBookById, clearBooks, isLoading, deleteBook };
+  return { books, addBook, getBookById, clearBooks, isLoading, deleteBook, updateBookProgress };
 }
