@@ -7,13 +7,23 @@ import { getAuth } from "firebase/auth";
 // IMPORTANT: This is a public configuration.
 // For security, ensure you have proper Firestore security rules and App Check configured.
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_APP_ID"
+
+  apiKey: "AIzaSyDreGZnxVNOr4Zl_yirKbvmteUqp6PNNXM",
+
+  authDomain: "reader-fe258.firebaseapp.com",
+
+  projectId: "reader-fe258",
+
+  storageBucket: "reader-fe258.firebasestorage.app",
+
+  messagingSenderId: "833760086150",
+
+  appId: "1:833760086150:web:d03819b08b4537bee56907",
+
+  measurementId: "G-1PR2LLE638"
+
 };
+
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
