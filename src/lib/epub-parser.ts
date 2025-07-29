@@ -54,10 +54,8 @@ function isLicensingInfo(text: string): boolean {
     return LICENSE_KEYWORDS.some(keyword => lowerText.includes(keyword));
 }
 
-let lineKey = 0;
-
 // Parses HTML content to extract text lines
-function parseHtmlContent(html: string): Line[] {
+function parseHtmlContent(html: string, keyCounter: { value: number }): Line[] {
     const cleanHtml = html.replace(/<br\s*\/?>/gi, '\n');
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = cleanHtml;
@@ -86,9 +84,9 @@ function parseHtmlContent(html: string): Line[] {
             const paragraphId = `p${pCounter++}`;
             text.split('\n').forEach(line => {
                 if (line.trim()) {
-                    lines.push({ type: 'content', text: line.trim(), paragraphId, key: `line-${lineKey++}` });
+                    lines.push({ type: 'content', text: line.trim(), paragraphId, key: `line-${keyCounter.value++}` });
                 } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
-                    lines.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
+                    lines.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
                 }
             });
         }
@@ -120,12 +118,12 @@ function parseHtmlContent(html: string): Line[] {
             // Split text by newlines to create separate lines, preserving paragraphs
             text.split('\n').forEach(lineText => {
                 if (lineText.trim()) {
-                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName, key: `line-${lineKey++}` });
+                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName, key: `line-${keyCounter.value++}` });
                 }
             });
         } else if (!text && lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
             // Add blank line for spacing between elements, but not multiple in a row
-            lines.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
+            lines.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
         }
     });
 
@@ -135,7 +133,7 @@ function parseHtmlContent(html: string): Line[] {
 
 export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">> {
   const zip = await JSZip.loadAsync(file);
-  lineKey = 0; // Reset line key for each book
+  const keyCounter = { value: 0 }; // Use an object to pass by reference
 
   // 1. Find and parse container.xml to get the path to the .opf file
   const containerFile = zip.file("META-INF/container.xml");
@@ -176,11 +174,11 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
     
     if (contentFile) {
         const htmlContent = await contentFile.async("string");
-        const lines = parseHtmlContent(htmlContent);
+        const lines = parseHtmlContent(htmlContent, keyCounter);
         if (bookContent.length > 0 && lines.length > 0) {
             // Add a blank line between sections from different files if the previous section didn't end with one.
             if(bookContent[bookContent.length -1].type !== 'blank') {
-                bookContent.push({ type: 'blank', text: '', key: `line-${lineKey++}` });
+                bookContent.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
             }
         }
         bookContent = bookContent.concat(lines);
@@ -189,5 +187,3 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
 
   return { title, author, content: bookContent };
 }
-
-    
