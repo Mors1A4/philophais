@@ -161,18 +161,21 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     }
   };
 
-  const handleTextSelection = () => {
+  const handleTextSelection = (event: React.MouseEvent | React.TouchEvent) => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
       if(activeSelection) {
-        // Simple heuristic: if the user clicks away, clear the selection.
-        // A more robust solution might check if the click is outside the content area.
         const isClickingTextarea = document.activeElement?.tagName === 'TEXTAREA';
         if (!isClickingTextarea) {
             setActiveSelection(null);
         }
       }
       return;
+    }
+  
+    // On touch devices, prevent the default context menu from appearing.
+    if (event.type === 'touchend' || event.type === 'touchcancel') {
+      event.preventDefault();
     }
 
     const range = selection.getRangeAt(0);
@@ -203,7 +206,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       setQuestion("");
     }
     
-    // Clear the native selection so our custom highlight takes over
     selection.removeAllRanges();
   };
 
@@ -255,7 +257,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     const notesInPara = book?.notes?.filter(n => n.paragraphKey === p.key) || [];
     const selection = (activeSelection?.paragraphKey === p.key) ? activeSelection : null;
     
-    // Combine notes and selection into a single list of "marks" to render
     const marks = [
       ...notesInPara.map(n => ({...n, type: 'note'})),
       ...(selection ? [{...selection, type: 'selection'}] : [])
@@ -267,7 +268,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     const segments: React.ReactNode[] = [];
 
     marks.forEach((mark, i) => {
-      // Add text before the mark
       if (mark.startIndex > lastIndex) {
         segments.push(<React.Fragment key={`text-${i}`}>{p.text.substring(lastIndex, mark.startIndex)}</React.Fragment>);
       }
@@ -293,7 +293,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
             </PopoverContent>
           </Popover>
         );
-      } else { // It's the active selection
+      } else {
          segments.push(
            <span key="selection" className="bg-yellow-400/40">
              {highlightedText}
@@ -304,7 +304,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       lastIndex = mark.endIndex;
     });
 
-    // Add any remaining text after the last mark
     if (lastIndex < p.text.length) {
       segments.push(<React.Fragment key="text-end">{p.text.substring(lastIndex)}</React.Fragment>);
     }
@@ -393,8 +392,10 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         className={cn(
           "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative"
         )}
-        onMouseUp={handleTextSelection}
-        onTouchEnd={handleTextSelection}
+        onMouseUp={(e) => handleTextSelection(e)}
+        onTouchEnd={(e) => handleTextSelection(e)}
+        onTouchCancel={(e) => handleTextSelection(e)}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
