@@ -35,7 +35,6 @@ export function ReaderClient({ bookId }: { bookId: string }) {
     
     setIsPaginating(true);
 
-    // Use a timeout to ensure DOM has settled
     setTimeout(() => {
         if (!contentRef.current) {
             setIsPaginating(false);
@@ -54,17 +53,35 @@ export function ReaderClient({ bookId }: { bookId: string }) {
         const newPages: Line[][] = [];
         let currentPageLines: Line[] = [];
         let currentLineWeight = 0;
+        
+        const allLines = book.content;
 
-        book.content.forEach((line) => {
-            const lineWeight = LINE_WEIGHTS[line.type];
+        for (let i = 0; i < allLines.length; i++) {
+            const currentLine = allLines[i];
+            const lineWeight = LINE_WEIGHTS[currentLine.type] || 1;
+            
+            // If it's the start of a paragraph, check if the whole paragraph can fit
+            if (currentLine.paragraphId && (i === 0 || allLines[i-1].paragraphId !== currentLine.paragraphId)) {
+                const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
+                const paragraphWeight = paragraphLines.reduce((total, l) => total + (LINE_WEIGHTS[l.type] || 1), 0);
+
+                if (currentLineWeight + paragraphWeight > linesPerScreen && currentPageLines.length > 0) {
+                    newPages.push(currentPageLines);
+                    currentPageLines = [];
+                    currentLineWeight = 0;
+                }
+            }
+            
+            // If the current line doesn't fit, create a new page
             if (currentLineWeight + lineWeight > linesPerScreen && currentPageLines.length > 0) {
                 newPages.push(currentPageLines);
                 currentPageLines = [];
                 currentLineWeight = 0;
             }
-            currentPageLines.push(line);
+
+            currentPageLines.push(currentLine);
             currentLineWeight += lineWeight;
-        });
+        }
 
         if (currentPageLines.length > 0) {
             newPages.push(currentPageLines);
@@ -72,7 +89,6 @@ export function ReaderClient({ bookId }: { bookId: string }) {
 
         setPages(newPages);
         
-        // Clamp current page to new total pages
         setCurrentPage(prev => {
             const newTotalPages = newPages.length || 1;
             return Math.max(1, Math.min(prev, newTotalPages));

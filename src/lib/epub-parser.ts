@@ -63,15 +63,17 @@ function parseHtmlContent(html: string): Line[] {
     });
 
     const lines: Line[] = [];
+    let pCounter = 0;
     const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div, blockquote"));
 
     if (blockElements.length === 0) {
         // Handle case where content is not wrapped in block elements
         const text = tempDiv.textContent?.trim();
         if (text) {
+            const paragraphId = `p${pCounter++}`;
             text.split('\n').forEach(line => {
                 if (line.trim()) {
-                    lines.push({ type: 'content', text: line.trim() });
+                    lines.push({ type: 'content', text: line.trim(), paragraphId });
                 } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
                     lines.push({ type: 'blank', text: '' });
                 }
@@ -90,10 +92,11 @@ function parseHtmlContent(html: string): Line[] {
                 type = level <= 2 ? 'title' : 'subtitle';
             }
             
+            const paragraphId = `p${pCounter++}`;
             // Split text by newlines to create separate lines, preserving paragraphs
             text.split('\n').forEach(lineText => {
                 if (lineText.trim()) {
-                    lines.push({ type, text: lineText.trim() });
+                    lines.push({ type, text: lineText.trim(), paragraphId });
                 }
             });
         } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {

@@ -1,6 +1,7 @@
 export interface Line {
   type: 'title' | 'subtitle' | 'content' | 'blank' | 'image';
   text: string;
+  paragraphId?: string;
 }
 
 export interface Book {
