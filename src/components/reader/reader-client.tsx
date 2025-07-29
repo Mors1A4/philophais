@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useAuthRedirect } from "@/hooks/use-auth";
 import { useBooks } from "@/hooks/use-books";
-import type { Book, Line } from "@/lib/types";
+import type { Book, Paragraph } from "@/lib/types";
 import { AIAssistant } from "./ai-assistant";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
@@ -12,100 +12,58 @@ import { cn } from "@/lib/utils";
 
 const LINE_HEIGHT_EM = 1.6;
 const FONT_SIZE_PX = 18;
-const LINE_WEIGHTS = {
-  title: 3,
-  subtitle: 2,
-  content: 1,
-  blank: 1,
-};
 
 export function ReaderClient({ bookId }: { bookId: string }) {
   const authStatus = useAuthRedirect(true);
   const { getBookById } = useBooks();
 
   const [book, setBook] = useState<Book | null>(null);
-  const [pages, setPages] = useState<Line[][]>([]);
+  const [pages, setPages] = useState<Paragraph[][]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isPaginating, setIsPaginating] = useState(true);
 
   const contentRef = useRef<HTMLDivElement>(null);
+  const paragraphMeasurerRef = useRef<HTMLDivElement>(null);
 
   const calculatePages = useCallback(() => {
-    if (!book || !contentRef.current) return;
+    if (!book || !contentRef.current || !paragraphMeasurerRef.current) return;
 
     setIsPaginating(true);
 
     setTimeout(() => {
-        if (!contentRef.current) {
+        if (!contentRef.current || !paragraphMeasurerRef.current) {
             setIsPaginating(false);
             return;
         };
 
         const containerHeight = contentRef.current.clientHeight;
-        const singleLineHeight = FONT_SIZE_PX * LINE_HEIGHT_EM;
-        const linesPerScreen = Math.floor(containerHeight / singleLineHeight);
-
-        if (linesPerScreen <= 0) {
-            setIsPaginating(false);
-            return;
-        };
+        const measurer = paragraphMeasurerRef.current;
         
-        const newPages: Line[][] = [];
-        let currentPageLines: Line[] = [];
-        let currentWeight = 0;
-        const allLines = book.content;
+        const newPages: Paragraph[][] = [];
+        let currentPageParagraphs: Paragraph[] = [];
+        let currentPageHeight = 0;
 
-        let i = 0;
-        while (i < allLines.length) {
-          const currentLine = allLines[i];
-          const lineWeight = LINE_WEIGHTS[currentLine.type] || 1;
+        for (const para of book.content) {
+            measurer.textContent = para.text;
+            measurer.className = cn("prose prose-lg dark:prose-invert max-w-none", para.className, para.type === 'title' ? "font-headline !mb-2 !text-4xl" : "", para.type === 'subtitle' ? "!mt-0 !text-2xl text-muted-foreground" : "", para.type === 'blank' ? "h-[1em]" : "!my-0 mb-4");
 
-          // Check for paragraph integrity
-          if (currentLine.paragraphId) {
-            const isParagraphStart = i === 0 || allLines[i-1].paragraphId !== currentLine.paragraphId;
-            
-            if (isParagraphStart) {
-              const paragraphLines = allLines.filter(l => l.paragraphId === currentLine.paragraphId);
-              const paragraphWeight = paragraphLines.reduce((acc, l) => acc + (LINE_WEIGHTS[l.type] || 1), 0);
-              
-              if (currentWeight + paragraphWeight > linesPerScreen && currentWeight > 0) {
-                // Not enough space for the new paragraph, so start a new page
-                newPages.push(currentPageLines);
-                currentPageLines = [];
-                currentWeight = 0;
-              }
-
-              // If the whole paragraph is too big for a single page, we have to split it.
-              // But for now, we assume paragraphs fit on one page.
-              for (const pLine of paragraphLines) {
-                const pLineWeight = LINE_WEIGHTS[pLine.type] || 1;
-                if (currentWeight + pLineWeight > linesPerScreen && currentPageLines.length > 0) {
-                  newPages.push(currentPageLines);
-                  currentPageLines = [];
-                  currentWeight = 0;
-                }
-                currentPageLines.push(pLine);
-                currentWeight += pLineWeight;
-              }
-              i += paragraphLines.length;
-              continue;
+            let paraHeight = measurer.offsetHeight;
+            if(para.type === 'blank'){
+                paraHeight = FONT_SIZE_PX * LINE_HEIGHT_EM;
             }
-          }
-          
-          // Fallback for lines without paragraphId or if logic is midway
-          if (currentWeight + lineWeight > linesPerScreen && currentPageLines.length > 0) {
-              newPages.push(currentPageLines);
-              currentPageLines = [];
-              currentWeight = 0;
-          }
 
-          currentPageLines.push(currentLine);
-          currentWeight += lineWeight;
-          i++;
+            if (currentPageHeight + paraHeight > containerHeight && currentPageParagraphs.length > 0) {
+                newPages.push(currentPageParagraphs);
+                currentPageParagraphs = [];
+                currentPageHeight = 0;
+            }
+
+            currentPageParagraphs.push(para);
+            currentPageHeight += paraHeight;
         }
 
-        if (currentPageLines.length > 0) {
-            newPages.push(currentPageLines);
+        if (currentPageParagraphs.length > 0) {
+            newPages.push(currentPageParagraphs);
         }
 
         setPages(newPages);
@@ -142,7 +100,7 @@ export function ReaderClient({ bookId }: { bookId: string }) {
   }, [pages, currentPage]);
 
   const pageContentForAI = useMemo(() => {
-    return currentContent.map(line => line.text).join('\n');
+    return currentContent.map(p => p.text).join('\n\n');
   }, [currentContent]);
 
 
@@ -185,22 +143,25 @@ export function ReaderClient({ bookId }: { bookId: string }) {
                     </div>
                 ) : (
                     <div className="prose prose-lg dark:prose-invert max-w-none" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}>
-                        {currentContent.map((line) => {
-                             const { key, paragraphId, ...lineProps } = line;
-                            switch (line.type) {
+                        {currentContent.map((para) => {
+                            switch (para.type) {
                                 case 'title':
-                                    return <h1 key={key} {...lineProps} className={cn("font-headline !mb-2 !text-4xl", line.className)}>{line.text}</h1>;
+                                    return <h1 key={para.key} className={cn("font-headline !mb-2 !text-4xl", para.className)}>{para.text}</h1>;
                                 case 'subtitle':
-                                    return <h2 key={key} {...lineProps} className={cn("!mt-0 !text-2xl text-muted-foreground", line.className)}>{line.text}</h2>;
+                                    return <h2 key={para.key} className={cn("!mt-0 !text-2xl text-muted-foreground", para.className)}>{para.text}</h2>;
                                 case 'blank':
-                                    return <div key={key} {...lineProps} className={cn("h-[1em]", line.className)}></div>;
+                                    return <div key={para.key} className="h-[1em]"></div>;
                                 default:
-                                    return <p key={key} {...lineProps} className={cn("!my-0 mb-4", line.className)}>{line.text}</p>;
+                                    return <p key={para.key} className={cn("!my-0 mb-4", para.className)}>{para.text}</p>;
                             }
                         })}
                     </div>
                 )}
             </div>
+
+            {/* Hidden measurer div */}
+            <div ref={paragraphMeasurerRef} className="invisible absolute -z-10 w-full max-w-4xl" style={{fontSize: `${FONT_SIZE_PX}px`, lineHeight: `${LINE_HEIGHT_EM}em`}}></div>
+
 
             <div className="mt-4 flex-shrink-0 justify-between">
                 <div className="flex items-center justify-center gap-4">

@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { xml2js } from "xml-js";
-import type { Book, Line } from "./types";
+import type { Book, Paragraph } from "./types";
 
 interface ManifestItem {
   _attributes: {
@@ -55,79 +55,63 @@ function isLicensingInfo(text: string): boolean {
 }
 
 // Parses HTML content to extract text lines
-function parseHtmlContent(html: string, keyCounter: { value: number }): Line[] {
-    const cleanHtml = html.replace(/<br\s*\/?>/gi, '\n');
+function parseHtmlContent(html: string, keyCounter: { value: number }): Paragraph[] {
     const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = cleanHtml;
+    tempDiv.innerHTML = html;
 
     // Attempt to remove footnote links cleanly
     tempDiv.querySelectorAll('a[href^="#"]').forEach(a => {
         const sup = a.parentElement;
         if (sup?.tagName === 'SUP') {
-            const nextSibling = sup.nextSibling;
-            // Remove space after footnote if it exists, to prevent weird spacing
-            if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent?.startsWith(' ')) {
-                nextSibling.textContent = nextSibling.textContent.substring(1);
-            }
             sup.remove();
         }
     });
 
-    const lines: Line[] = [];
-    let pCounter = 0;
+    const paragraphs: Paragraph[] = [];
     const blockElements = Array.from(tempDiv.querySelectorAll("p, h1, h2, h3, h4, h5, h6, div, blockquote"));
 
     if (blockElements.length === 0) {
         // Handle case where content is not wrapped in block elements
         const text = tempDiv.textContent?.trim();
         if (text && !isLicensingInfo(text)) {
-            const paragraphId = `p${pCounter++}`;
-            text.split('\n').forEach(line => {
-                if (line.trim()) {
-                    lines.push({ type: 'content', text: line.trim(), paragraphId, key: `line-${keyCounter.value++}` });
-                } else if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
-                    lines.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
+            text.split('\n\n').forEach(para => {
+                if (para.trim()) {
+                    paragraphs.push({ type: 'content', text: para.trim(), key: `para-${keyCounter.value++}` });
                 }
             });
         }
-        return lines;
+        return paragraphs;
     }
 
     blockElements.forEach(el => {
         const text = el.textContent?.trim();
         if (text && !isLicensingInfo(text)) {
-            let type: Line['type'] = 'content';
+            let type: Paragraph['type'] = 'content';
             const tagName = el.tagName.toLowerCase();
             if (tagName.startsWith('h')) {
                 const level = parseInt(tagName.substring(1), 10);
                 type = level <= 2 ? 'title' : 'subtitle';
             }
             
-            const paragraphId = `p${pCounter++}`;
             const className = el.getAttribute('class') || '';
             const style = el.getAttribute('style') || '';
             
-            let lineClassName = '';
+            let paragraphClassName = '';
             if (className.includes('center') || style.includes('text-align: center')) {
-                lineClassName = 'text-center';
+                paragraphClassName = 'text-center';
             }
             if(tagName === 'blockquote'){
-                lineClassName = 'pl-4 italic border-l-2 border-muted-foreground my-4';
+                paragraphClassName = 'pl-4 italic border-l-2 border-muted-foreground my-4';
             }
 
-            // Split text by newlines to create separate lines, preserving paragraphs
-            text.split('\n').forEach(lineText => {
-                if (lineText.trim()) {
-                    lines.push({ type, text: lineText.trim(), paragraphId, className: lineClassName, key: `line-${keyCounter.value++}` });
-                }
-            });
-        } else if (!text && lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
+            paragraphs.push({ type, text, className: paragraphClassName, key: `para-${keyCounter.value++}` });
+        } else if (!text && paragraphs.length > 0 && paragraphs[paragraphs.length - 1].type !== 'blank') {
             // Add blank line for spacing between elements, but not multiple in a row
-            lines.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
+            paragraphs.push({ type: 'blank', text: '', key: `para-${keyCounter.value++}` });
         }
     });
 
-    return lines;
+    return paragraphs;
 }
 
 
@@ -163,7 +147,7 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
   });
 
   // 4. Read spine items in order and parse their content
-  let bookContent: Line[] = [];
+  let bookContent: Paragraph[] = [];
   for (const spineItem of spineItems) {
     const idref = spineItem._attributes.idref;
     const href = manifestMap.get(idref);
@@ -174,14 +158,14 @@ export async function parseEpub(file: File): Promise<Omit<Book, "id" | "cover">>
     
     if (contentFile) {
         const htmlContent = await contentFile.async("string");
-        const lines = parseHtmlContent(htmlContent, keyCounter);
-        if (bookContent.length > 0 && lines.length > 0) {
+        const paragraphs = parseHtmlContent(htmlContent, keyCounter);
+        if (bookContent.length > 0 && paragraphs.length > 0) {
             // Add a blank line between sections from different files if the previous section didn't end with one.
             if(bookContent[bookContent.length -1].type !== 'blank') {
-                bookContent.push({ type: 'blank', text: '', key: `line-${keyCounter.value++}` });
+                bookContent.push({ type: 'blank', text: '', key: `para-${keyCounter.value++}` });
             }
         }
-        bookContent = bookContent.concat(lines);
+        bookContent = bookContent.concat(paragraphs);
     }
   }
 
