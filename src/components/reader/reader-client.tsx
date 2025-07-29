@@ -65,14 +65,17 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         </Button>
       </header>
       <main className="prose prose-lg dark:prose-invert mx-auto max-w-3xl p-4 md:p-8">
-        {contentToDisplay.map((p) => {
+        {contentToDisplay.map((p, index) => {
           if (p.type === 'blank') {
             return <div key={p.key} className="h-4"></div>;
           }
           return (
-            <p key={p.key} className={getParagraphClassName(p.type, p.className)}>
-              {p.text}
-            </p>
+            <React.Fragment key={p.key}>
+              <p className={getParagraphClassName(p.type, p.className)}>
+                {p.text}
+              </p>
+              <div className="h-4"></div>
+            </React.Fragment>
           );
         })}
       </main>
