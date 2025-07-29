@@ -257,10 +257,27 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     const notesInPara = book?.notes?.filter(n => n.paragraphKey === p.key) || [];
     const selection = (activeSelection?.paragraphKey === p.key) ? activeSelection : null;
     
-    const marks = [
+    let allMarks = [
       ...notesInPara.map(n => ({...n, type: 'note'})),
       ...(selection ? [{...selection, type: 'selection'}] : [])
     ].sort((a, b) => a.startIndex - b.startIndex);
+
+    // De-duplicate marks. If a selection and a note occupy the exact same space, prefer the selection.
+    const marks = allMarks.reduce((acc, current) => {
+      const previous = acc[acc.length - 1];
+      if (previous && previous.startIndex === current.startIndex && previous.endIndex === current.endIndex) {
+        // If the current one is a selection, it replaces the previous one (which must be a note due to sort order)
+        if (current.type === 'selection') {
+          acc[acc.length - 1] = current;
+        }
+        // Otherwise, if the current one is a note and we already have a selection, do nothing (keep the selection).
+        // If both are notes, this shouldn't happen with unique IDs, but we'd just keep the first one.
+      } else {
+        acc.push(current);
+      }
+      return acc;
+    }, [] as typeof allMarks);
+
 
     if (marks.length === 0) return p.text;
     
