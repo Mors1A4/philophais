@@ -2,13 +2,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Book, Note } from "@/lib/types";
-import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc, arrayUnion, arrayRemove, writeBatch, documentId } from "firebase/firestore";
+import type { Book, Note, Paragraph } from "@/lib/types";
+import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc, arrayUnion, arrayRemove, writeBatch, query, orderBy, collectionGroup } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
 const db = getFirestore(app);
 const auth = getAuth(app);
+const MAX_DOC_SIZE = 1000000; // 1MB, with a small buffer
 
 export function useBooks() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -63,17 +64,35 @@ export function useBooks() {
 
     try {
       const booksCollection = collection(db, "users", userId, "books");
-      
-      // Use a batch to write both docs atomically
       const batch = writeBatch(db);
 
       // 1. Create the main book document with metadata
       const bookDocRef = doc(booksCollection);
       batch.set(bookDocRef, bookData);
 
-      // 2. Create the content document in a subcollection
-      const contentDocRef = doc(collection(bookDocRef, 'content'), 'main');
-      batch.set(contentDocRef, { value: content });
+      // 2. Chunk and save the content
+      const contentCollectionRef = collection(bookDocRef, 'content');
+      let currentChunk: Paragraph[] = [];
+      let currentChunkSize = 0;
+      let chunkIndex = 0;
+
+      for (const p of content) {
+        const paraSize = JSON.stringify(p).length;
+        if (currentChunkSize + paraSize > MAX_DOC_SIZE && currentChunk.length > 0) {
+          const chunkDocRef = doc(contentCollectionRef, `chunk_${chunkIndex}`);
+          batch.set(chunkDocRef, { value: currentChunk, index: chunkIndex });
+          chunkIndex++;
+          currentChunk = [];
+          currentChunkSize = 0;
+        }
+        currentChunk.push(p);
+        currentChunkSize += paraSize;
+      }
+      
+      if (currentChunk.length > 0) {
+        const chunkDocRef = doc(contentCollectionRef, `chunk_${chunkIndex}`);
+        batch.set(chunkDocRef, { value: currentChunk, index: chunkIndex });
+      }
 
       await batch.commit();
       
@@ -98,21 +117,25 @@ export function useBooks() {
     setIsLoading(true);
     try {
         const bookDocRef = doc(db, "users", userId, "books", id);
-        const contentDocRef = doc(collection(bookDocRef, 'content'), 'main');
+        const contentCollectionRef = collection(bookDocRef, 'content');
 
-        const [bookDoc, contentDoc] = await Promise.all([
-            getDoc(bookDocRef),
-            getDoc(contentDocRef)
-        ]);
+        const bookDoc = await getDoc(bookDocRef);
         
         if (bookDoc.exists()) {
             const bookData = { ...bookDoc.data(), id: bookDoc.id } as Book;
             
-            if(contentDoc.exists()){
-                bookData.content = contentDoc.data().value;
-            } else {
-                bookData.content = []; // Or handle as an error
-            }
+            // Fetch all content chunks and reassemble them
+            const contentQuery = query(contentCollectionRef, orderBy("index"));
+            const contentSnapshot = await getDocs(contentQuery);
+            
+            let fullContent: Paragraph[] = [];
+            contentSnapshot.docs.forEach(chunkDoc => {
+                const chunkData = chunkDoc.data();
+                if(chunkData.value) {
+                    fullContent = fullContent.concat(chunkData.value);
+                }
+            });
+            bookData.content = fullContent;
 
             // Update local state with the full book data
             setBooks(prev => {

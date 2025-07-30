@@ -8,7 +8,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import type { Book } from "@/lib/types";
+import type { Book, Paragraph } from "@/lib/types";
 
 // Your web app's Firebase configuration
 // IMPORTANT: This is a public configuration.
@@ -27,6 +27,7 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
+const MAX_DOC_SIZE = 1000000; // 1MB with a buffer
 
 export { app, db, auth };
 
@@ -36,7 +37,6 @@ export const addBookToLibrary = async (
 ): Promise<Book> => {
   const booksCollection = collection(db, "users", userId, "books");
   
-  // Separate content from metadata
   const { content, ...metadata } = book;
   const bookData = { 
     ...metadata, 
@@ -45,13 +45,31 @@ export const addBookToLibrary = async (
   
   const batch = writeBatch(db);
 
-  // 1. Create the main book document with metadata
   const bookDocRef = doc(booksCollection);
   batch.set(bookDocRef, bookData);
 
-  // 2. Create the content document in a subcollection
-  const contentDocRef = doc(collection(bookDocRef, 'content'), 'main');
-  batch.set(contentDocRef, { value: content });
+  const contentCollectionRef = collection(bookDocRef, 'content');
+  let currentChunk: Paragraph[] = [];
+  let currentChunkSize = 0;
+  let chunkIndex = 0;
+
+  for (const p of content) {
+    const paraSize = JSON.stringify(p).length;
+    if (currentChunkSize + paraSize > MAX_DOC_SIZE && currentChunk.length > 0) {
+      const chunkDocRef = doc(contentCollectionRef, `chunk_${chunkIndex}`);
+      batch.set(chunkDocRef, { value: currentChunk, index: chunkIndex });
+      chunkIndex++;
+      currentChunk = [];
+      currentChunkSize = 0;
+    }
+    currentChunk.push(p);
+    currentChunkSize += paraSize;
+  }
+
+  if (currentChunk.length > 0) {
+    const chunkDocRef = doc(contentCollectionRef, `chunk_${chunkIndex}`);
+    batch.set(chunkDocRef, { value: currentChunk, index: chunkIndex });
+  }
 
   await batch.commit();
 
