@@ -1,10 +1,11 @@
 const PLACEHOLDER_COVER = "https://placehold.co/400x600";
 
 export async function findBookCover(title: string, author: string): Promise<string> {
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  // This is the public API key from the Firebase project configuration.
+  const apiKey = "AIzaSyDreGZnxVNOr4Zl_yirKbvmteUqp6PNNXM";
 
   if (!apiKey) {
-    console.warn("Google Books API key (NEXT_PUBLIC_GEMINI_API_KEY) not found. Using placeholder cover.");
+    console.warn("Google Books API key not found. Using placeholder cover.");
     return PLACEHOLDER_COVER;
   }
 
