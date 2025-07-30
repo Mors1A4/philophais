@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { getAuth, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { BrowseGutenbergCard } from "./browse-gutenberg-card";
 
 export function LibraryClient() {
   const { authStatus } = useAuthRedirect(true);
@@ -91,9 +92,13 @@ export function LibraryClient() {
             {books.map((book) => (
               <BookCard key={book.id} book={book} onDelete={handleDeleteBook} />
             ))}
+            <BrowseGutenbergCard />
           </div>
         ) : (
-          <EmptyLibrary onUpload={addBook} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <EmptyLibrary onUpload={addBook} />
+            <BrowseGutenbergCard />
+          </div>
         )}
       </main>
     </div>

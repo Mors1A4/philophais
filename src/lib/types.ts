@@ -42,3 +42,19 @@ export const AnswerQuestionOutputSchema = z.object({
   answer: z.string().describe("The answer to the question."),
 });
 export type AnswerQuestionOutput = z.infer<typeof AnswerQuestionOutputSchema>;
+
+// Type for books from Gutendex API
+export interface GutendexBook {
+    id: number;
+    title: string;
+    authors: { name: string; birth_year: number; death_year: number }[];
+    subjects: string[];
+    bookshelves: string[];
+    languages: string[];
+    copyright: boolean;
+    media_type: string;
+    formats: {
+        [key: string]: string;
+    };
+    download_count: number;
+}
