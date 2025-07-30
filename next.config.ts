@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
         hostname: 'books.google.com',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.gutenberg.org',
+        port: '',
+        pathname: '/**',
       }
     ],
   },

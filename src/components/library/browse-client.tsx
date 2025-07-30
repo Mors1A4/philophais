@@ -86,7 +86,6 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
                             width={400}
                             height={600}
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            unoptimized
                         />
                     </div>
                     <div className="p-3 flex flex-col flex-1">
