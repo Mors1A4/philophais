@@ -15,7 +15,14 @@ export async function findBookCover(title: string, author: string): Promise<stri
   try {
     const response = await fetch(proxiedUrl);
     if (!response.ok) {
-      throw new Error(`Google Books API request failed: ${response.statusText}`);
+       // Try to get more specific error info from the response body
+      let errorBody = "No additional error information from API.";
+      try {
+        errorBody = await response.text();
+      } catch (e) {
+        // Ignore if we can't read the body
+      }
+      throw new Error(`Google Books API request failed with status ${response.status}: ${response.statusText}. Body: ${errorBody}`);
     }
     const data = await response.json();
 
@@ -24,15 +31,12 @@ export async function findBookCover(title: string, author: string): Promise<stri
       const imageLinks = book.volumeInfo.imageLinks;
       
       if (imageLinks) {
-        // Start with the best available link
+        // Start with the best available link and ensure it's HTTPS
         let coverUrl = (imageLinks.extraLarge || imageLinks.large || imageLinks.thumbnail || imageLinks.smallThumbnail).replace(/^http:/, 'https:');
         
         // Attempt to get an even higher resolution by modifying the URL
         if (coverUrl.includes('zoom=')) {
-            // Replace zoom parameter for a higher resolution one
             const highResUrl = coverUrl.replace(/(&|\?)zoom=\d+/, '$1zoom=3');
-            // We can check if this image exists, but for simplicity, we'll just request it.
-            // Most browsers will handle a 404 gracefully for an img src.
             return highResUrl;
         }
         
@@ -43,6 +47,8 @@ export async function findBookCover(title: string, author: string): Promise<stri
     return PLACEHOLDER_COVER;
   } catch (error) {
     console.error("Error fetching book cover:", error);
-    return PLACEHOLDER_COVER;
+    // Re-throwing the error so the calling function knows something went wrong.
+    // The calling function will then fall back to the placeholder.
+    throw error;
   }
 }
