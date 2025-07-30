@@ -53,10 +53,11 @@ export function useBooks() {
   const addBook = useCallback(async (newBook: Omit<Book, "id">) => {
     if (!userId) return;
     try {
-      const coverUrl = await findBookCover(newBook.title, newBook.author);
+      const googleCoverUrl = await findBookCover(newBook.title, newBook.author);
+      
       const bookWithCover: Omit<Book, "id"> = {
         ...newBook,
-        coverUrl: coverUrl || newBook.coverUrl,
+        cover: googleCoverUrl || newBook.cover,
       };
 
       const booksCollection = collection(db, "users", userId, "books");
