@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth, useAuthRedirect } from "@/hooks/use-auth";
-import Image from "next/image";
+import { BookMarked } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { LoadingSpinner } from "@/components/loading-spinner";
@@ -46,15 +46,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <Card className="shadow-2xl">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4">
-              <Image
-                src="https://placehold.co/100x100.png"
-                alt="EpubMentor Logo"
-                width={80}
-                height={80}
-                className="rounded-full"
-                data-ai-hint="logo book"
-              />
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+              <BookMarked className="h-10 w-10 text-primary" />
             </div>
             <CardTitle className="font-headline text-3xl">Create an Account</CardTitle>
             <CardDescription>
