@@ -5,6 +5,7 @@ import {
   addDoc,
   doc,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import type { Book } from "@/lib/types";
@@ -34,8 +35,25 @@ export const addBookToLibrary = async (
   book: Omit<Book, "id">
 ): Promise<Book> => {
   const booksCollection = collection(db, "users", userId, "books");
-  const bookData = { ...book, notes: book.notes || [] };
-  const docRef = await addDoc(booksCollection, bookData);
-  const newBookDoc = await getDoc(docRef);
-  return { ...newBookDoc.data(), id: newBookDoc.id } as Book;
+  
+  // Separate content from metadata
+  const { content, ...metadata } = book;
+  const bookData = { 
+    ...metadata, 
+    notes: metadata.notes || [] 
+  };
+  
+  const batch = writeBatch(db);
+
+  // 1. Create the main book document with metadata
+  const bookDocRef = doc(booksCollection);
+  batch.set(bookDocRef, bookData);
+
+  // 2. Create the content document in a subcollection
+  const contentDocRef = doc(collection(bookDocRef, 'content'), 'main');
+  batch.set(contentDocRef, { value: content });
+
+  await batch.commit();
+
+  return { ...bookData, content, id: bookDocRef.id };
 };
