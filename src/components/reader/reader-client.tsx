@@ -446,7 +446,7 @@ Assistant: ${response.answer}
       <main 
         ref={pageContainerRef} 
         className={cn(
-          "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative"
+          "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative no-native-selection-callout"
         )}
         onMouseUp={(e) => handleTextSelection(e)}
         onTouchEnd={(e) => handleTextSelection(e)}
