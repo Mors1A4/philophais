@@ -53,15 +53,13 @@ export function useBooks() {
   const addBook = useCallback(async (newBook: Omit<Book, "id">) => {
     if (!userId) return;
     try {
-      const googleCoverUrl = await findBookCover(newBook.title, newBook.author);
-      
-      const bookWithCover: Omit<Book, "id"> = {
-        ...newBook,
-        cover: googleCoverUrl || newBook.cover,
+      const bookData = { 
+        ...newBook, 
+        cover: newBook.cover || 'https://placehold.co/400x600', // Ensure cover is never undefined
+        notes: newBook.notes || [] 
       };
 
       const booksCollection = collection(db, "users", userId, "books");
-      const bookData = { ...bookWithCover, notes: newBook.notes || [] }; // Ensure notes is an array
       const docRef = await addDoc(booksCollection, bookData);
       const bookWithId: Book = { ...bookData, id: docRef.id };
       setBooks((prevBooks) => [...prevBooks, bookWithId]);

@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { parseEpub } from "@/lib/epub-parser";
-import { findBookCover } from "@/lib/google-books-api";
 
 const fetchEpub = async (url: string): Promise<File | null> => {
     try {
@@ -53,11 +52,10 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
 
         try {
             const parsedBook = await parseEpub(file);
-            const finalCoverUrl = await findBookCover(parsedBook.title, parsedBook.author);
             
             const bookData: Omit<Book, "id"> = {
                 ...parsedBook,
-                cover: finalCoverUrl,
+                cover: coverImage, // Use the cover from Gutenberg
             };
 
             await addBook(bookData);

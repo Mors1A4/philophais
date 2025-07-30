@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRef, useState } from "react";
@@ -6,7 +7,6 @@ import { Loader2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Book } from "@/lib/types";
 import { parseEpub } from "@/lib/epub-parser";
-import { findBookCover } from "@/lib/google-books-api";
 
 interface UploadButtonProps {
   onUpload: (book: Omit<Book, "id">) => void;
@@ -28,11 +28,10 @@ export function UploadButton({ onUpload }: UploadButtonProps) {
         setIsUploading(true);
         try {
           const parsedBook = await parseEpub(file);
-          const coverUrl = await findBookCover(parsedBook.title, parsedBook.author);
           
           const bookData: Omit<Book, "id"> = {
             ...parsedBook,
-            cover: coverUrl,
+            cover: 'https://placehold.co/400x600',
           };
 
           onUpload(bookData);
