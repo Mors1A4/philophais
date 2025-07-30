@@ -34,6 +34,8 @@ export interface Book {
 export const AnswerQuestionInputSchema = z.object({
   question: z.string().describe("The user's question."),
   pageContent: z.string().describe("The content of the current book page."),
+  bookTitle: z.string().describe("The title of the book."),
+  bookAuthor: z.string().describe("The author of the book."),
   chatHistory: z.string().optional().describe("The history of the conversation so far, for context."),
 });
 export type AnswerQuestionInput = z.infer<typeof AnswerQuestionInputSchema>;

@@ -16,7 +16,7 @@ const prompt = ai.definePrompt({
   name: 'qAndAPrompt',
   input: {schema: AnswerQuestionInputSchema},
   output: {schema: AnswerQuestionOutputSchema},
-  prompt: `You are an expert reading assistant. Your task is to answer the user's question based on the provided page content and the context of the previous conversation. Give useful insights about the text in relation to the question.
+  prompt: `You are an AI expert on the book "{{bookTitle}}" by {{bookAuthor}}. You have done loads of analysis on the text. Your task is to answer the user's question based on the provided page content and the context of the previous conversation. Give useful insights about the text in relation to the question.
 
 {{#if chatHistory}}
 Conversation History:

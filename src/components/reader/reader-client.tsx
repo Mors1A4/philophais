@@ -355,7 +355,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   };
 
   const handleAskQuestion = async () => {
-    if (!question.trim() || !pages[currentPage]) {
+    if (!question.trim() || !pages[currentPage] || !book) {
       return;
     }
 
@@ -364,11 +364,19 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     setIsResponseVisible(true);
 
     const pageContent = pages[currentPage].map(p => p.text).join('\n\n');
-    const input: AnswerQuestionInput = { question, pageContent, chatHistory };
+    const input: AnswerQuestionInput = {
+      question,
+      pageContent,
+      bookTitle: book.title,
+      bookAuthor: book.author,
+      chatHistory,
+    };
 
     try {
       const response = await answerQuestion(input);
-      const newHistory = `User: ${question}\nAssistant: ${response.answer}\n`;
+      const newHistory = `User: ${question}
+Assistant: ${response.answer}
+`;
       setChatHistory(prev => prev + newHistory);
       setLastResponse(response.answer);
     } catch (error) {
@@ -580,5 +588,3 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
-
-    
