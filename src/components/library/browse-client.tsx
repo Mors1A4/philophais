@@ -33,7 +33,7 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
     const { addBook } = useBooks();
     const { toast } = useToast();
     const [isAdding, setIsAdding] = useState(false);
-    const [coverImage, setCoverImage] = useState(gutendexBook.formats['image/jpeg'] ?? `https://www.gutenberg.org/cache/epub/${gutendexBook.id}/pg${gutendexBook.id}.cover.medium.jpg`);
+    const coverImage = gutendexBook.formats['image/jpeg'] ?? `https://www.gutenberg.org/cache/epub/${gutendexBook.id}/pg${gutendexBook.id}.cover.medium.jpg`;
 
     const handleAddBook = async () => {
         setIsAdding(true);
@@ -53,12 +53,7 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
 
         try {
             const parsedBook = await parseEpub(file);
-            let finalCoverUrl = `https://placehold.co/400x600`;
-            try {
-                finalCoverUrl = await findBookCover(parsedBook.title, parsedBook.author);
-            } catch (coverError) {
-                 console.error(`Could not fetch cover for "${parsedBook.title}". Using placeholder.`, coverError);
-            }
+            const finalCoverUrl = await findBookCover(parsedBook.title, parsedBook.author);
             
             const bookData: Omit<Book, "id"> = {
                 ...parsedBook,
@@ -81,30 +76,6 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
     };
 
     const author = gutendexBook.authors[0]?.name || "Unknown Author";
-    
-    useEffect(() => {
-        let isCancelled = false;
-        const fetchCover = async () => {
-            try {
-                const coverUrl = await findBookCover(gutendexBook.title, author);
-                if (!isCancelled) {
-                    setCoverImage(coverUrl);
-                }
-            } catch (error) {
-                 console.error(`Failed to fetch cover for ${gutendexBook.title}. Using default.`, error);
-            }
-        };
-
-        // We only fetch from Google Books API if the default gutenberg cover is not available or looks like a generic one
-        if (!coverImage.includes('gutenberg.org')) {
-          fetchCover();
-        }
-
-        return () => {
-            isCancelled = true;
-        }
-    }, [gutendexBook.title, author, coverImage]);
-
 
     return (
         <div className="group relative">
