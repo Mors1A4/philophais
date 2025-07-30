@@ -10,9 +10,10 @@ export async function findBookCover(title: string, author: string): Promise<stri
 
   const query = `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`;
   const url = `https://www.googleapis.com/books/v1/volumes?q=${query}&key=${apiKey}`;
+  const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(proxiedUrl);
     if (!response.ok) {
       throw new Error(`Google Books API request failed: ${response.statusText}`);
     }
