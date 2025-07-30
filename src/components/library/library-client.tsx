@@ -46,14 +46,14 @@ export function LibraryClient() {
   if (authStatus === "loading" || isLoading) {
     return (
         <div className="flex min-h-screen w-full flex-col">
-            <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background px-4 md:px-8">
-              <Skeleton className="h-8 w-48" />
+            <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 md:px-8">
+              <Skeleton className="h-8 w-36" />
               <Skeleton className="h-8 w-24" />
             </header>
             <main className="flex-1 p-4 md:p-8">
-              <div className="mb-8 flex items-center justify-between">
-                <Skeleton className="h-10 w-64" />
-                <Skeleton className="h-10 w-32" />
+               <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+                <Skeleton className="h-10 w-48" />
+                <Skeleton className="h-10 w-[138px]" />
               </div>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {[...Array(6)].map((_, i) => (
