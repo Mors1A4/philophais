@@ -26,11 +26,7 @@ interface BookCardProps {
 export function BookCard({ book, onDelete }: BookCardProps) {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
 
-  const handleDelete = (e: React.MouseEvent) => {
-    // We stop propagation here to prevent the link from being triggered
-    // when the delete button in the dialog is clicked.
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDelete = () => {
     onDelete(book.id);
   };
   
@@ -60,18 +56,18 @@ export function BookCard({ book, onDelete }: BookCardProps) {
           </CardContent>
         </Card>
       </Link>
+      
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button
             variant="destructive"
             size="icon"
             className={`absolute top-2 right-2 z-10 h-8 w-8 transition-opacity duration-200 ${isMenuVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
         </AlertDialogTrigger>
-        <AlertDialogContent onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
