@@ -15,10 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { parseEpub } from "@/lib/epub-parser";
+import { findBookCover } from "@/lib/google-books-api";
 
 const fetchEpub = async (url: string): Promise<File | null> => {
     try {
-        const response = await fetch(`https://agent.api.stephenf.xyz/cors-proxy/${url}`);
+        const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
         if (!response.ok) return null;
         const blob = await response.blob();
         return new File([blob], "book.epub", { type: "application/epub+zip" });
@@ -51,10 +52,13 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
 
         try {
             const parsedBook = await parseEpub(file);
+            const coverUrl = await findBookCover(parsedBook.title, parsedBook.author);
+            
             const bookData: Omit<Book, "id"> = {
                 ...parsedBook,
-                cover: gutendexBook.formats['image/jpeg'] ?? `https://www.gutenberg.org/cache/epub/${gutendexBook.id}/pg${gutendexBook.id}.cover.medium.jpg`,
+                cover: coverUrl,
             };
+
             await addBook(bookData);
             toast({ title: "Success", description: `"${bookData.title}" has been added to your library.` });
         } catch (error) {
@@ -71,6 +75,7 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
     };
 
     const author = gutendexBook.authors[0]?.name || "Unknown Author";
+    const coverImage = gutendexBook.formats['image/jpeg'] ?? `https://www.gutenberg.org/cache/epub/${gutendexBook.id}/pg${gutendexBook.id}.cover.medium.jpg`;
 
     return (
         <div className="group relative">
@@ -78,7 +83,7 @@ function GutendexBookCard({ book: gutendexBook }: { book: GutendexBook }) {
                 <CardContent className="p-0 flex flex-col flex-1">
                     <div className="aspect-[2/3] w-full overflow-hidden">
                         <Image
-                            src={gutendexBook.formats['image/jpeg'] ?? `https://www.gutenberg.org/cache/epub/${gutendexBook.id}/pg${gutendexBook.id}.cover.medium.jpg`}
+                            src={coverImage}
                             alt={`Cover of ${gutendexBook.title}`}
                             width={400}
                             height={600}
