@@ -6,6 +6,7 @@ import type { Book, Note } from "@/lib/types";
 import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, getDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
+import { findBookCover } from "@/lib/google-books-api";
 
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -52,8 +53,14 @@ export function useBooks() {
   const addBook = useCallback(async (newBook: Omit<Book, "id">) => {
     if (!userId) return;
     try {
+      const coverUrl = await findBookCover(newBook.title, newBook.author);
+      const bookWithCover: Omit<Book, "id"> = {
+        ...newBook,
+        coverUrl: coverUrl || newBook.coverUrl,
+      };
+
       const booksCollection = collection(db, "users", userId, "books");
-      const bookData = { ...newBook, notes: newBook.notes || [] }; // Ensure notes is an array
+      const bookData = { ...bookWithCover, notes: newBook.notes || [] }; // Ensure notes is an array
       const docRef = await addDoc(booksCollection, bookData);
       const bookWithId: Book = { ...bookData, id: docRef.id };
       setBooks((prevBooks) => [...prevBooks, bookWithId]);

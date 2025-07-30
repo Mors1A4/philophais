@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useVisualViewportHeight } from "@/hooks/use-visual-viewport-height";
 import { cn } from "@/lib/utils";
 import { NOTE_COLORS } from "@/lib/types";
+import { useMobile } from "@/hooks/use-mobile";
+import { SelectionHandles } from "./selection-handles";
 
 interface ReaderClientProps {
   bookId: string;
@@ -71,6 +73,7 @@ const noteColorBgClasses: Record<NoteColor, string> = {
 export function ReaderClient({ bookId }: ReaderClientProps) {
   useAuthRedirect(true);
   useVisualViewportHeight();
+  const isMobile = useMobile();
 
   const { getBookById, updateBookProgress, addNote, deleteNote } = useBooks();
   const [book, setBook] = useState<Book | undefined>(undefined);
@@ -88,6 +91,8 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const [isAsking, setIsAsking] = useState(false);
 
   const [activeSelection, setActiveSelection] = useState<SelectionInfo | null>(null);
+  const [selectionRects, setSelectionRects] = useState<{ start: DOMRect | null, end: DOMRect | null }>({ start: null, end: null });
+  const [isDragging, setIsDragging] = useState<null | 'start' | 'end'>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [selectedColor, setSelectedColor] = useState<NoteColor>('yellow');
   
@@ -97,6 +102,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   const responseCardRef = useRef<HTMLDivElement>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const prevButtonRef = useRef<HTMLButtonElement>(null);
+  const dragTimeoutRef = useRef<NodeJS.Timeout>();
 
   const paginate = useCallback(() => {
     if (!book || !pageContainerRef.current) return;
@@ -189,13 +195,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
   };
 
   const handleTextSelection = (event: React.MouseEvent | React.TouchEvent) => {
+    if (isDragging) return;
     const selection = window.getSelection();
+    
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      if(activeSelection) {
-        const isClickingTextarea = document.activeElement?.tagName === 'TEXTAREA';
-        if (!isClickingTextarea) {
-            setActiveSelection(null);
-        }
+      const isClickingTextarea = document.activeElement?.tagName === 'TEXTAREA';
+      if (!isClickingTextarea) {
+          setActiveSelection(null);
       }
       return;
     }
@@ -226,6 +232,13 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     if (text.trim()) {
       setActiveSelection({ paragraphKey, startIndex, endIndex, text });
       setQuestion("");
+
+      if (isMobile) {
+        const rects = range.getClientRects();
+        if (rects.length > 0) {
+            setSelectionRects({ start: rects[0], end: rects[rects.length - 1] });
+        }
+      }
     }
     
     selection.removeAllRanges();
@@ -285,7 +298,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       ...(selection ? [{...selection, type: 'selection'}] : [])
     ].sort((a, b) => a.startIndex - b.startIndex);
 
-    // De-duplicate marks. If a selection and a note occupy the exact same space, prefer the selection.
     const marks = allMarks.reduce((acc, current) => {
       const previous = acc[acc.length - 1];
       if (previous && previous.startIndex === current.startIndex && previous.endIndex === current.endIndex) {
@@ -338,7 +350,7 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         );
       } else {
          segments.push(
-           <span key="selection" className="bg-yellow-400/40">
+           <span key="selection" className="bg-blue-300/40">
              {highlightedText}
            </span>
          );
@@ -368,7 +380,9 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
     try {
       const response = await answerQuestion(input);
-      const newHistory = `User: ${question}\nAssistant: ${response.answer}\n`;
+      const newHistory = `User: ${question}
+Assistant: ${response.answer}
+`;
       setChatHistory(prev => prev + newHistory);
       setLastResponse(response.answer);
     } catch (error) {
@@ -380,6 +394,110 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       setQuestion("");
     }
   };
+
+  const handleDragStart = (handle: 'start' | 'end') => {
+    setIsDragging(handle);
+  };
+  
+  const handleDrag = (handle: 'start' | 'end', clientX: number, clientY: number) => {
+    if (isDragging !== handle) return;
+    
+    clearTimeout(dragTimeoutRef.current);
+    dragTimeoutRef.current = setTimeout(() => {
+        const paraEl = pageContainerRef.current?.querySelector(`[data-paragraph-key="${activeSelection?.paragraphKey}"]`);
+        if (!paraEl) return;
+
+        // Use carets to find the best character offset
+        let range;
+        if (document.caretRangeFromPoint) {
+            range = document.caretRangeFromPoint(clientX, clientY);
+        } else if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(clientX, clientY);
+            if(!pos) return;
+            range = document.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+        } else {
+            return; // No browser support
+        }
+        
+        if (!range || !paraEl.contains(range.startContainer)) return;
+        
+        const clone = range.cloneRange();
+        clone.selectNodeContents(paraEl);
+        clone.setEnd(range.startContainer, range.startOffset);
+        const newOffset = clone.toString().length;
+
+        setActiveSelection(prev => {
+            if (!prev) return null;
+            let { startIndex, endIndex } = prev;
+            if (handle === 'start') {
+                startIndex = Math.min(newOffset, prev.endIndex);
+            } else {
+                endIndex = Math.max(newOffset, prev.startIndex);
+            }
+            if(startIndex === endIndex) { // Don't allow empty selection
+                if(handle === 'start') startIndex = endIndex -1;
+                else endIndex = startIndex + 1;
+            }
+            return { ...prev, startIndex, endIndex };
+        });
+    }, 10);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(null);
+  };
+
+  useEffect(() => {
+    if (!activeSelection) {
+        setSelectionRects({ start: null, end: null });
+        return;
+    }
+    
+    const { paragraphKey, startIndex, endIndex } = activeSelection;
+    const para = pages.flat().find(p => p.key === paragraphKey);
+    const paraEl = pageContainerRef.current?.querySelector(`[data-paragraph-key="${paragraphKey}"]`);
+
+    if (!para || !paraEl || startIndex >= endIndex) {
+        setSelectionRects({ start: null, end: null });
+        return;
+    }
+
+    const text = para.text.slice(startIndex, endIndex);
+    setActiveSelection(prev => prev ? {...prev, text} : null);
+
+    const range = document.createRange();
+    let startNode: Node | undefined, endNode: Node | undefined;
+    let startOffset = 0, endOffset = 0;
+
+    const walker = document.createTreeWalker(paraEl, NodeFilter.SHOW_TEXT);
+    let currentNode = walker.nextNode();
+    let currentOffset = 0;
+
+    while(currentNode) {
+        const len = currentNode.textContent?.length ?? 0;
+        if (!startNode && startIndex < currentOffset + len) {
+            startNode = currentNode;
+            startOffset = startIndex - currentOffset;
+        }
+        if (!endNode && endIndex <= currentOffset + len) {
+            endNode = currentNode;
+            endOffset = endIndex - currentOffset;
+            break;
+        }
+        currentOffset += len;
+        currentNode = walker.nextNode();
+    }
+    
+    if (startNode && endNode) {
+        range.setStart(startNode, startOffset);
+        range.setEnd(endNode, endOffset);
+        const rects = range.getClientRects();
+        if (rects.length > 0) {
+            setSelectionRects({ start: rects[0], end: rects[rects.length - 1] });
+        }
+    }
+  }, [activeSelection?.startIndex, activeSelection?.endIndex, activeSelection?.paragraphKey, pages]);
   
   useEffect(() => {
     setChatHistory("");
@@ -440,12 +558,8 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         className={cn(
           "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative"
         )}
-        onMouseUp={(e) => handleTextSelection(e)}
-        onTouchEnd={(e) => handleTextSelection(e)}
-        onTouchCancel={(e) => {
-          e.preventDefault();
-          handleTextSelection(e);
-        }}
+        onMouseUp={(e) => !isMobile && handleTextSelection(e)}
+        onTouchEnd={(e) => isMobile && handleTextSelection(e)}
       >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -466,6 +580,17 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
               );
             })}
           </div>
+        )}
+
+        {isMobile && activeSelection && (
+            <SelectionHandles 
+                containerRef={pageContainerRef}
+                startRect={selectionRects.start}
+                endRect={selectionRects.end}
+                onDragStart={handleDragStart}
+                onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
+            />
         )}
       </main>
       
@@ -580,3 +705,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     </div>
   );
 }
+
+    
+    
