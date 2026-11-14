@@ -1,6 +1,3 @@
-
-"use client";
-
 import { useState, useEffect, useCallback } from 'react';
 import type { GutendexBook } from '@/lib/types';
 
@@ -59,6 +56,11 @@ export function useGutendex(searchTerm: string) {
         fetchBooks();
     }, [fetchBooks]);
 
+    const loadMore = useCallback(() => {
+        if (!isLoading && hasNextPage) {
+            setPage(p => p + 1);
+        }
+    }, [isLoading, hasNextPage]);
 
-    return { books, isLoading, error, setPage, hasNextPage };
+    return { books, isLoading, error, setPage, hasNextPage, loadMore };
 }

@@ -1,15 +1,10 @@
-
-"use client";
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useBooks } from "@/hooks/use-books";
-import { useAuthRedirect } from "@/hooks/use-auth";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2, Save, Sparkles, Trash2, X } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { Paragraph, AnswerQuestionInput, Book, Note, NoteColor } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
-import { answerQuestion } from "@/ai/flows/q-and-a-flow";
+import { askGeminiQuestion } from "@/lib/gemini";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +14,7 @@ import { NOTE_COLORS } from "@/lib/types";
 
 interface ReaderClientProps {
   bookId: string;
+  onBack: () => void;
 }
 
 interface SelectionInfo {
@@ -32,10 +28,10 @@ const getParagraphClassName = (type: string, additionalClass?: string) => {
   let baseClasses = 'my-0 text-left';
   switch (type) {
     case 'title':
-      baseClasses += ' text-3xl font-bold font-headline mt-8 mb-4';
+      baseClasses += ' text-2xl sm:text-3xl font-bold font-headline mt-6 mb-3';
       break;
     case 'subtitle':
-      baseClasses += ' text-xl font-semibold font-headline mt-6 mb-3 text-muted-foreground';
+      baseClasses += ' text-lg sm:text-xl font-semibold font-headline mt-4 mb-2 text-muted-foreground';
       break;
     default:
       break;
@@ -52,24 +48,22 @@ const noteColorClasses: Record<NoteColor, string> = {
 };
 
 const noteColorRingClasses: Record<NoteColor, string> = {
-    yellow: "ring-yellow-500",
-    red: "ring-red-500",
-    green: "ring-green-500",
-    blue: "ring-blue-500",
-    purple: "ring-purple-500",
+  yellow: "ring-yellow-500",
+  red: "ring-red-500",
+  green: "ring-green-500",
+  blue: "ring-blue-500",
+  purple: "ring-purple-500",
 };
 
 const noteColorBgClasses: Record<NoteColor, string> = {
-    yellow: "bg-yellow-500",
-    red: "bg-red-500",
-    green: "bg-green-500",
-    blue: "bg-blue-500",
-    purple: "bg-purple-500",
+  yellow: "bg-yellow-500",
+  red: "bg-red-500",
+  green: "bg-green-500",
+  blue: "bg-blue-500",
+  purple: "bg-purple-500",
 };
 
-
-export function ReaderClient({ bookId }: ReaderClientProps) {
-  useAuthRedirect(true);
+export function ReaderClient({ bookId, onBack }: ReaderClientProps) {
   useVisualViewportHeight();
 
   const { getBookById, updateBookProgress, addNote, deleteNote } = useBooks();
@@ -133,8 +127,8 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
 
       measurer.appendChild(paraElement);
       const style = window.getComputedStyle(paraElement);
-      const marginTop = parseFloat(style.marginTop);
-      const marginBottom = parseFloat(style.marginBottom);
+      const marginTop = parseFloat(style.marginTop) || 0;
+      const marginBottom = parseFloat(style.marginBottom) || 0;
       const paraHeight = paraElement.offsetHeight + marginTop + marginBottom + (p.type === 'content' ? 16 : 0);
       measurer.removeChild(paraElement);
 
@@ -183,7 +177,6 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
         await updateBookProgress(book.id, paragraphKey);
       } catch (err) {
         console.error("Failed to update progress:", err);
-        toast({ variant: "destructive", title: "Sync Error", description: "Could not save reading progress."});
       }
     }
   };
@@ -248,109 +241,95 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
       const updatedBook = { ...book, notes: [...(book.notes || []), note] };
       setBook(updatedBook);
       toast({ title: "Note saved!" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Could not save note."});
-    } finally {
-      setIsSavingNote(false);
       setActiveSelection(null);
       setQuestion("");
+    } catch (error) {
+      console.error("Failed to save note:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not save the note." });
+    } finally {
+      setIsSavingNote(false);
     }
   };
 
-  const handleDeleteNote = async (note: Note) => {
+  const handleDeleteNote = async (noteToDelete: Note) => {
     if (!book) return;
     try {
-      await deleteNote(book.id, note);
-       const updatedBook = { ...book, notes: book.notes?.filter(n => n.id !== note.id) };
-       setBook(updatedBook);
-       toast({ title: "Note deleted." });
+      await deleteNote(book.id, noteToDelete);
+      const updatedNotes = book.notes?.filter(n => n.id !== noteToDelete.id);
+      setBook({ ...book, notes: updatedNotes });
+      toast({ title: "Note deleted." });
     } catch (error) {
-       toast({ variant: "destructive", title: "Error", description: "Could not delete note."});
+      console.error("Failed to delete note:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not delete the note." });
     }
   };
 
-  const pageParaKeys = useMemo(() => {
-    if (!pages[currentPage]) return new Set();
-    return new Set(pages[currentPage].map(p => p.key));
-  }, [pages, currentPage]);
-
   const renderParagraphWithHighlights = (p: Paragraph) => {
-    if (!pageParaKeys.has(p.key)) return p.text;
+    if (!book?.notes) return p.text;
 
-    const notesInPara = book?.notes?.filter(n => n.paragraphKey === p.key) || [];
-    const selection = (activeSelection?.paragraphKey === p.key) ? activeSelection : null;
-    
-    let allMarks = [
-      ...notesInPara.map(n => ({...n, type: 'note'})),
-      ...(selection ? [{...selection, type: 'selection'}] : [])
-    ].sort((a, b) => a.startIndex - b.startIndex);
+    const pNotes = book.notes
+      .filter((n) => n.paragraphKey === p.key)
+      .sort((a, b) => a.startIndex - b.startIndex);
 
-    // De-duplicate marks. If a selection and a note occupy the exact same space, prefer the selection.
-    const marks = allMarks.reduce((acc, current) => {
-      const previous = acc[acc.length - 1];
-      if (previous && previous.startIndex === current.startIndex && previous.endIndex === current.endIndex) {
-        if (current.type === 'selection') {
-          acc[acc.length - 1] = current;
-        }
-      } else {
-        acc.push(current);
-      }
-      return acc;
-    }, [] as typeof allMarks);
+    if (pNotes.length === 0) return p.text;
 
-
-    if (marks.length === 0) return p.text;
-    
+    const segments = [];
     let lastIndex = 0;
-    const segments: React.ReactNode[] = [];
 
-    marks.forEach((mark, i) => {
-      if (mark.startIndex > lastIndex) {
-        segments.push(<React.Fragment key={`text-${i}`}>{p.text.substring(lastIndex, mark.startIndex)}</React.Fragment>);
-      }
-
-      const highlightedText = p.text.substring(mark.startIndex, mark.endIndex);
-
-      if (mark.type === 'note') {
-        const note = mark as Note;
+    pNotes.forEach((note) => {
+      if (note.startIndex > lastIndex) {
         segments.push(
-          <Popover key={note.id}>
-            <PopoverTrigger asChild>
-              <span className={cn("cursor-pointer font-semibold", noteColorClasses[note.color])} data-note-id={note.id}>
-                {highlightedText}
-              </span>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                <div className="flex flex-col">
-                    <div className={cn("p-3", noteColorBgClasses[note.color])}>
-                        <p className="font-bold text-sm text-black/70">Note</p>
-                    </div>
-                    <div className="p-4 space-y-4">
-                        <p className="text-sm border-l-2 border-muted-foreground pl-3 italic text-muted-foreground">"{note.selectedText}"</p>
-                        <p className="text-base">{note.text}</p>
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteNote(note)} className="w-full">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete Note
-                        </Button>
-                    </div>
-                </div>
-            </PopoverContent>
-          </Popover>
+          <React.Fragment key={`text-${lastIndex}`}>
+            {p.text.substring(lastIndex, note.startIndex)}
+          </React.Fragment>
         );
-      } else {
-         segments.push(
-           <span key="selection" className="bg-yellow-400/40">
-             {highlightedText}
-           </span>
-         );
       }
 
-      lastIndex = mark.endIndex;
+      segments.push(
+        <Popover key={note.id}>
+          <PopoverTrigger asChild>
+            <span
+              className={cn(
+                "cursor-pointer rounded-sm px-0.5 transition-colors underline decoration-2 underline-offset-2",
+                noteColorClasses[note.color]
+              )}
+            >
+              {p.text.substring(note.startIndex, note.endIndex)}
+            </span>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-3" align="start">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Note
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDeleteNote(note)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-xs italic text-muted-foreground">&quot;{note.selectedText}&quot;</p>
+              <p className="text-sm font-medium">{note.text}</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
+
+      lastIndex = note.endIndex;
     });
 
     if (lastIndex < p.text.length) {
-      segments.push(<React.Fragment key="text-end">{p.text.substring(lastIndex)}</React.Fragment>);
+      segments.push(
+        <React.Fragment key="text-end">
+          {p.text.substring(lastIndex)}
+        </React.Fragment>
+      );
     }
-    
+
     return <>{segments}</>;
   };
 
@@ -373,22 +352,20 @@ export function ReaderClient({ bookId }: ReaderClientProps) {
     };
 
     try {
-      const response = await answerQuestion(input);
-      const newHistory = `User: ${question}
-Assistant: ${response.answer}
-`;
+      const response = await askGeminiQuestion(input);
+      const newHistory = `User: ${question}\nAssistant: ${response.answer}\n`;
       setChatHistory(prev => prev + newHistory);
       setLastResponse(response.answer);
     } catch (error) {
       console.error("Error asking question:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not get an answer from the assistant."});
-      setLastResponse("Sorry, I couldn't get an answer. Please try again.");
+      toast({ variant: "destructive", title: "Error", description: "Could not get an answer from the assistant." });
+      setLastResponse("The AI assistant encountered an issue. Please try again.");
     } finally {
       setIsAsking(false);
       setQuestion("");
     }
   };
-  
+
   useEffect(() => {
     setChatHistory("");
     setLastResponse(null);
@@ -400,7 +377,7 @@ Assistant: ${response.answer}
     if (isTurningPage) return;
     setIsTurningPage(true);
 
-    const newPage = direction === 'next' 
+    const newPage = direction === 'next'
       ? Math.min(currentPage + 1, pages.length - 1)
       : Math.max(currentPage - 1, 0);
 
@@ -408,57 +385,43 @@ Assistant: ${response.answer}
       setCurrentPage(newPage);
       await handleProgressUpdate(newPage);
     }
-    
-    setTimeout(() => setIsTurningPage(false), 100); 
-  };
-  
-  const goToNextPage = async () => {
-    await changePage('next');
-    nextButtonRef.current?.blur();
-  };
-
-  const goToPrevPage = async () => {
-    await changePage('prev');
-    prevButtonRef.current?.blur();
+    setTimeout(() => setIsTurningPage(false), 200);
   };
 
   if (!book) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <p>Loading book...</p>
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 font-headline">Loading book from device storage...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-col" style={{ height: 'var(--vh, 100vh)' }}>
-      <header ref={headerRef} className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-8">
-        <div className="flex flex-col overflow-hidden">
-          <h1 className="font-headline text-xl font-bold truncate">{book.title}</h1>
-          <p className="text-sm text-muted-foreground truncate">{book.author}</p>
+    <div className="flex w-full flex-col min-h-screen bg-background text-foreground select-text">
+      <header ref={headerRef} className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-8">
+        <div className="flex flex-col overflow-hidden max-w-[70%]">
+          <h1 className="font-headline text-base sm:text-lg font-bold truncate">{book.title}</h1>
+          <p className="text-xs text-muted-foreground truncate">{book.author}</p>
         </div>
-        <Button asChild variant="ghost">
-          <Link href="/library"><ArrowLeft className="mr-2 h-4 w-4" />Back to Library</Link>
+        <Button onClick={onBack} variant="ghost" size="sm" className="gap-1.5">
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Library</span>
         </Button>
       </header>
-      
-      <main 
-        ref={pageContainerRef} 
+
+      <main
+        ref={pageContainerRef}
         className={cn(
           "flex-1 overflow-y-auto prose prose-lg dark:prose-invert mx-auto max-w-3xl w-full p-4 md:p-8 relative no-native-selection-callout"
         )}
         onMouseUp={(e) => handleTextSelection(e)}
         onTouchEnd={(e) => handleTextSelection(e)}
-        onTouchCancel={(e) => {
-          e.preventDefault();
-          handleTextSelection(e);
-        }}
       >
         {isPaginating ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="ml-2">Calculating pages...</span>
+            <span className="ml-2">Formatting pages...</span>
           </div>
         ) : (
           <div>
@@ -469,121 +432,137 @@ Assistant: ${response.answer}
                   <p className={getParagraphClassName(p.type, p.className)} data-paragraph-key={p.key}>
                     {renderParagraphWithHighlights(p)}
                   </p>
-                  {p.type === 'content' && <div className="h-4" />}
                 </React.Fragment>
               );
             })}
           </div>
         )}
       </main>
-      
-      {isResponseVisible && (
-        <div ref={responseCardRef} className="w-full max-w-3xl mx-auto p-4 pt-0 shrink-0">
-          <Card className="relative shadow-lg">
-            <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => setIsResponseVisible(false)}>
+
+      {/* Floating Action Menu for Selected Text */}
+      {activeSelection && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-lg rounded-xl border bg-card/95 p-3 shadow-2xl backdrop-blur">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Selected: &quot;{activeSelection.text.substring(0, 30)}...&quot;
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setActiveSelection(null)}
+            >
               <X className="h-4 w-4" />
             </Button>
-            <CardHeader>
-              <CardTitle className="text-lg font-headline flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-accent" />
-                Assistant
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                  {lastResponse ?? <Loader2 className="animate-spin" />}
-              </div>
-               {activeSelection && lastResponse && !isAsking && (
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setQuestion(lastResponse)}
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy to Note
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          </div>
+
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-muted-foreground">Color:</span>
+            {NOTE_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setSelectedColor(c)}
+                className={cn(
+                  "h-5 w-5 rounded-full transition-transform",
+                  noteColorBgClasses[c],
+                  selectedColor === c ? "ring-2 ring-foreground scale-110" : "opacity-70 hover:opacity-100"
+                )}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <Textarea
+              placeholder="Add your note or question about this passage..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              className="min-h-[60px] text-xs resize-none"
+            />
+          </div>
+
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleAskQuestion}
+              disabled={isAsking || !question.trim()}
+              className="gap-1.5 text-xs"
+            >
+              {isAsking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Ask AI
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveNote}
+              disabled={isSavingNote || !question.trim()}
+              className="gap-1.5 text-xs"
+            >
+              {isSavingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save Note
+            </Button>
+          </div>
         </div>
       )}
 
-      <footer ref={footerRef} className="shrink-0 border-t relative z-10">
-        <div className="w-full max-w-3xl mx-auto p-2 space-y-2">
-           {activeSelection ? (
-            <>
-              <div className="flex items-center justify-center gap-3 pt-2">
-                  {NOTE_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={cn(
-                        "h-6 w-6 rounded-full transition-all",
-                        noteColorBgClasses[color],
-                        selectedColor === color ? 'ring-2 ring-offset-2 ring-offset-background' : 'hover:scale-110',
-                        noteColorRingClasses[color]
-                      )}
-                      aria-label={`Select ${color} color`}
-                    />
-                  ))}
-              </div>
-              <div className="flex w-full items-center gap-2">
-                 <Textarea
-                    placeholder="Add a note to your highlight..."
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSaveNote();
-                        }
-                    }}
-                    className="text-base min-h-[40px] resize-none"
-                    rows={1}
-                />
-                <Button onClick={handleSaveNote} disabled={isSavingNote || !question.trim()} style={{backgroundColor: `hsl(var(--primary))`}}>
-                    {isSavingNote ? <Loader2 className="animate-spin" /> : <Save />}
-                    <span className="sr-only">Save Note</span>
-                </Button>
-              </div>
-            </>
-           ) : (
-            <>
-              <div className="flex w-full items-center gap-2">
-                  <Textarea
-                      placeholder="Ask a question about this page..."
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleAskQuestion();
-                          }
-                      }}
-                      className="text-base min-h-[40px] resize-none"
-                      rows={1}
-                  />
-                  <Button onClick={handleAskQuestion} disabled={isAsking || !question.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                      {isAsking ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                      <span className="sr-only">Ask</span>
-                  </Button>
-              </div>
-               <div className="flex w-full items-center justify-between">
-                <Button ref={prevButtonRef} variant="outline" size="icon" onClick={goToPrevPage} disabled={currentPage === 0 || isPaginating || isTurningPage}>
-                    <ChevronLeft />
-                </Button>
-                <span className="text-sm text-muted-foreground font-mono shrink-0">
-                    {isPaginating ? '...' : `Page ${currentPage + 1} / ${pages.length}`}
-                </span>
-                <Button ref={nextButtonRef} variant="outline" size="icon" onClick={goToNextPage} disabled={currentPage >= pages.length - 1 || isPaginating || isTurningPage}>
-                    <ChevronRight />
-                </Button>
-              </div>
-            </>
-           )}
+      {/* AI Response Card */}
+      {isResponseVisible && lastResponse && (
+        <div
+          ref={responseCardRef}
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-lg rounded-xl border bg-card/95 p-4 shadow-2xl backdrop-blur"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 text-primary text-xs font-semibold">
+              <Sparkles className="h-4 w-4" />
+              <span>AI Companion Insight</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setIsResponseVisible(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="text-xs leading-relaxed text-foreground/90 max-h-48 overflow-y-auto whitespace-pre-line">
+            {lastResponse}
+          </div>
         </div>
+      )}
+
+      {/* Reading Navigation Footer */}
+      <footer
+        ref={footerRef}
+        className="sticky bottom-0 z-20 flex h-14 shrink-0 items-center justify-between border-t bg-background/95 px-4 backdrop-blur md:px-8"
+      >
+        <Button
+          ref={prevButtonRef}
+          onClick={() => changePage('prev')}
+          disabled={currentPage === 0 || isPaginating}
+          variant="outline"
+          size="sm"
+          className="gap-1"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Prev</span>
+        </Button>
+
+        <div className="text-xs font-mono text-muted-foreground">
+          {pages.length > 0 ? `Page ${currentPage + 1} of ${pages.length}` : '—'}
+        </div>
+
+        <Button
+          ref={nextButtonRef}
+          onClick={() => changePage('next')}
+          disabled={currentPage >= pages.length - 1 || isPaginating}
+          variant="outline"
+          size="sm"
+          className="gap-1"
+        >
+          <span className="hidden sm:inline">Next</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </footer>
     </div>
   );
